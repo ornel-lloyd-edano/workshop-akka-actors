@@ -1,13 +1,10 @@
 package io.scalac.auction
 
-import java.util.UUID
-
 import akka.actor.typed.scaladsl.StashBuffer
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
 import io.scalac.auction.AuctionActor.AuctionCommand
-
 
 object AuctionActor {
 
@@ -38,6 +35,7 @@ object AuctionActor {
   final case class AggregatedLotDetails(lotDetails: Seq[LotDetails]) extends  AuctionResponse
   final case class BidAccepted(auctionId: String, userId: String, lotId: String) extends AuctionResponse
   final case class BidRejected(auctionId: String, userId: String, lotId: String) extends AuctionResponse
+  final case class LotNotFound(auctionId: String, lotId: String) extends AuctionResponse
 
   def apply(id: String): Behavior[AuctionCommand] =
     Behaviors.withStash(100) { buffer=>
@@ -52,11 +50,13 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
   private var lotActors = Map[String, ActorRef[LotActor.LotCommand]]()
 
   private val lotActorResponseAdapter: ActorRef[LotActor.LotResponse] = context.messageAdapter(ref=> WrappedLotActorResponse(ref))
+  private var idCounter = 0
 
   private def closed: Behavior[AuctionCommand] =
     Behaviors.receiveMessagePartial {
       case AddLot(maybeDescription, maybeMinBidAmount, replyTo)=>
-        val lotId = UUID.randomUUID().toString
+        idCounter += 1
+        val lotId = idCounter.toString
         val lotActor = context.spawn(LotActor(lotId, maybeDescription, maybeMinBidAmount, None), s"LotActor-$lotId")
         lotActors += (lotId -> lotActor)
         replyTo ! LotCreated(id, lotId)
@@ -76,7 +76,7 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
         lotActors.foreach {
           case (_, lotActor)=> context.stop(lotActor)
         }
-        val idsToRemove = lotActors.keys.toSeq
+        val idsToRemove = lotActors.keys.toSeq.sorted
         lotActors = Map()
         replyTo ! LotsRemoved(id, idsToRemove)
         Behaviors.same
@@ -87,21 +87,23 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
 
   private def inProgress(replyTo: ActorRef[AuctionResponse]): Behavior[AuctionCommand] =
     Behaviors.receiveMessagePartial {
-      case Bid(userId, lotId, amount, maxBidAmount, _)=>
+      case Bid(userId, lotId, amount, maxBidAmount, replyTo)=>
         lotActors.find(_._1 == lotId) match {
-          case Some((_, lotActor: LotActor))=>
+          case Some((_, lotActor))=>
             lotActor ! LotActor.Bid(userId, amount, maxBidAmount, lotActorResponseAdapter)
             inProgress(replyTo)
           case None=>
+            replyTo ! AuctionActor.LotNotFound(id, lotId)
             Behaviors.same
         }
 
-      case GetLot(lotId, _)=>
+      case GetLot(lotId, replyTo)=>
         lotActors.find(_._1 == lotId) match {
           case Some((_, lotActor))=>
             lotActor ! LotActor.GetDetails(lotActorResponseAdapter)
             inProgress(replyTo)
           case None=>
+            replyTo ! AuctionActor.LotNotFound(id, lotId)
             Behaviors.same
         }
 
@@ -116,23 +118,25 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
         }
         Behaviors.same
 
-      case GetAllLots(_)=>
+      case GetAllLots(replyTo)=>
+        lotActors.foreach(_._2 ! LotActor.GetDetails(lotActorResponseAdapter))
         gatheringAllLotDetails(Seq.empty[LotDetails], replyTo)
 
-      case Stop(_)=>
+      case Stop(replyTo)=>
         replyTo ! Stopped(id)
-        stopped
+        stopped(replyTo)
     }
 
 
   private def gatheringAllLotDetails(lotDetailsReceived: Seq[LotDetails], replyTo: ActorRef[AuctionResponse]): Behavior[AuctionCommand] =
     Behaviors.receiveMessage {
       case WrappedLotActorResponse(LotActor.LotDetails(lotId, description, currentTopBidder, currentBidAmount))=>
-        if (lotDetailsReceived.size < lotActors.size)
-          gatheringAllLotDetails(lotDetailsReceived :+ LotDetails(id, lotId, description, currentTopBidder, currentBidAmount), replyTo)
-        else {
+        val gatheredLotDetails = lotDetailsReceived :+ LotDetails(id, lotId, description, currentTopBidder, currentBidAmount)
+        if (gatheredLotDetails.size < lotActors.size) {
+          gatheringAllLotDetails(gatheredLotDetails, replyTo)
+        } else {
           //finished collecting responses from all my children, reply to my parent
-          replyTo ! AggregatedLotDetails(lotDetailsReceived)
+          replyTo ! AggregatedLotDetails(gatheredLotDetails.sortBy(_.lotId))
           buffer.unstashAll(inProgress(replyTo))
         }
 
@@ -141,9 +145,10 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
         Behaviors.same
     }
 
-  private def stopped: Behavior[AuctionCommand] = Behaviors.receiveMessage {
+  private def stopped(replyTo: ActorRef[AuctionResponse]): Behavior[AuctionCommand] = Behaviors.receiveMessage {
     case _=>
-      context.log.warn(s"Auction $id is already stopped and cannot accept anymore commands.")
+      context.log.warn(s"Auction $id is already stopped and cannot process anymore commands.")
+      replyTo ! Stopped(id)
       Behaviors.same
   }
 
