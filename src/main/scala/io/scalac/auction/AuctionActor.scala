@@ -9,21 +9,32 @@ import io.scalac.auction.AuctionActor.AuctionCommand
 object AuctionActor {
 
   sealed trait AuctionCommand
+  sealed trait InProgressStateCommand {
+    val replyTo: ActorRef[AuctionResponse]
+  }
+  sealed trait ClosedStateCommand {
+    val replyTo: ActorRef[AuctionResponse]
+  }
+
   sealed trait AuctionResponse
 
-  final case class Start(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand
-  final case class Stop(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand
-  final case class AddLot(description: Option[String], minBidAmount: Option[BigDecimal], replyTo: ActorRef[AuctionResponse]) extends AuctionCommand
-  final case class RemoveLot(lotId: String, replyTo: ActorRef[AuctionResponse]) extends AuctionCommand
-  final case class RemoveAllLots(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand
-  final case class GetLot(lotId: String, replyTo: ActorRef[AuctionResponse]) extends AuctionCommand
-  final case class GetAllLots(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand
+  final case class Start(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with ClosedStateCommand
+  final case class Stop(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with InProgressStateCommand
+  final case class AddLot(description: Option[String], minBidAmount: Option[BigDecimal],
+                          replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with ClosedStateCommand
+  final case class RemoveLot(lotId: String, replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with ClosedStateCommand
+  final case class RemoveAllLots(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with ClosedStateCommand
+  final case class GetLot(lotId: String, replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with InProgressStateCommand
+  final case class GetAllLots(replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with InProgressStateCommand
 
-  final case class Bid(userId: String, lotId: String, amount: BigDecimal, maxBidAmount: BigDecimal, replyTo: ActorRef[AuctionResponse]) extends AuctionCommand {
+  final case class Bid(userId: String, lotId: String, amount: BigDecimal,
+                       maxBidAmount: BigDecimal, replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with InProgressStateCommand {
     require(maxBidAmount > amount)
   }
 
   final case class WrappedLotActorResponse(response: LotActor.LotResponse) extends  AuctionCommand
+
+  final case class AuctionCommandRejected(auctionId: String) extends AuctionResponse
 
   final case class Started(auctionId: String) extends AuctionResponse
   final case class Stopped(auctionId: String) extends AuctionResponse
@@ -83,6 +94,11 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
       case Start(replyTo)=>
         replyTo ! Started(id)
         inProgress(replyTo)
+
+      case other: InProgressStateCommand=>
+        context.log.warn(s"Unable to process this message [$other] because AuctionActor $id is in Closed state.")
+        other.replyTo ! AuctionCommandRejected(id)
+        Behaviors.same
   }
 
   private def inProgress(replyTo: ActorRef[AuctionResponse]): Behavior[AuctionCommand] =
@@ -125,6 +141,11 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
       case Stop(replyTo)=>
         replyTo ! Stopped(id)
         stopped(replyTo)
+
+      case other: ClosedStateCommand=>
+        context.log.warn(s"Unable to process this message [$other] because AuctionActor $id is in In-Progress state.")
+        other.replyTo ! AuctionCommandRejected(id)
+        Behaviors.same
     }
 
 
@@ -147,8 +168,8 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
 
   private def stopped(replyTo: ActorRef[AuctionResponse]): Behavior[AuctionCommand] = Behaviors.receiveMessage {
     case _=>
-      context.log.warn(s"Auction $id is already stopped and cannot process anymore commands.")
-      replyTo ! Stopped(id)
+      context.log.warn(s"AuctionActor $id is already stopped and cannot process anymore commands.")
+      replyTo ! AuctionCommandRejected(id)
       Behaviors.same
   }
 

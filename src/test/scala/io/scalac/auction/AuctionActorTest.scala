@@ -55,17 +55,17 @@ class AuctionActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers 
     val bidderUserId = UUID.randomUUID().toString
     "ignore AddLot message" in {
       auctionActor ! AuctionActor.AddLot(Some("rare fossilized insects"), Some(BigDecimal(1000)), probe.ref)
-      probe.expectNoMessage()
+      probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
     }
 
     "ignore RemoveLot message" in {
       auctionActor ! AuctionActor.RemoveLot("6", probe.ref)
-      probe.expectNoMessage()
+      probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
     }
 
     "ignore Start message" in {
       auctionActor ! AuctionActor.Start(probe.ref)
-      probe.expectNoMessage()
+      probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
     }
 
     "accept GetLot and reply with LotDetails" in {
@@ -124,13 +124,13 @@ class AuctionActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers 
 
     "ignore any other message when actor is in stopped state" in {
       auctionActor ! AuctionActor.Start(probe.ref)
-      probe.expectMessage(AuctionActor.Stopped(auctionId))
+      probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
 
       auctionActor ! AuctionActor.GetLot("7", probe.ref)
-      probe.expectMessage(AuctionActor.Stopped(auctionId))
+      probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
 
       auctionActor ! AuctionActor.Bid("anotherUserId", "7", BigDecimal(1500), BigDecimal(2000), probe.ref)
-      probe.expectMessage(AuctionActor.Stopped(auctionId))
+      probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
     }
   }
 }
