@@ -74,6 +74,8 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
         Behaviors.same
       case RemoveLot(lotId, replyTo)=>
         lotActors.partition(_._1 == lotId) match {
+          case (remove, _) if remove.isEmpty=>
+            replyTo ! LotNotFound(id, lotId)
           case (remove, retain)=>
             lotActors = retain
             remove.headOption.foreach {

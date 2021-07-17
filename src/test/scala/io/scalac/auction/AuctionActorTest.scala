@@ -45,6 +45,11 @@ class AuctionActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers 
       probe.expectMessage(AuctionActor.LotRemoved(auctionId, "5"))
     }
 
+    "accept RemoveLot message and reply LotNotFound if lotId is not found" in {
+      auctionActor ! AuctionActor.RemoveLot("5", probe.ref)
+      probe.expectMessage(AuctionActor.LotNotFound(auctionId, "5"))
+    }
+
     "accept Start and reply with Started then transition to in-progress state" in {
       auctionActor ! AuctionActor.Start(probe.ref)
       probe.expectMessage(AuctionActor.Started(auctionId))
