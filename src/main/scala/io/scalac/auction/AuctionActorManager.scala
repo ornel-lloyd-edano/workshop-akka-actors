@@ -41,10 +41,6 @@ object AuctionActorManager {
   final case class LotNotFound(auctionId: String, lotId: String) extends AuctionMgmtResponse
   case object CommandRejected extends AuctionMgmtResponse
 
-  private val singleton: Behavior[AuctionMgmtCommand] =
-    Behaviors.withStash(100) { buffer=>
-      Behaviors.setup(context => new AuctionActorManager(buffer, context).running(None))
-    }
   def apply(): Behavior[AuctionMgmtCommand] = Behaviors.withStash(100) { buffer=>
     Behaviors.setup(context => new AuctionActorManager(buffer, context).running(None))
   }
