@@ -3,7 +3,7 @@ package io.scalac.auction
 import akka.actor.typed.{ActorRef, Scheduler}
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
-import io.scalac.auction.model.{Auction, AuctionId, Lot, ServiceFailure}
+import io.scalac.auction.model.{Auction, AuctionId, AuctionStates, Lot, ServiceFailure}
 import io.scalac.util.{ConfigProvider, ExecutionContextProvider}
 
 import scala.concurrent.duration._
@@ -29,7 +29,35 @@ class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.Auction
     }
   }
 
-  override def getAuctions: Future[Either[ServiceFailure, Seq[Auction]]] = ???
+  override def getAuctions: Future[Either[ServiceFailure, Seq[Auction]]] = {
+    auctionManager.ask[AuctionActorManager.AuctionMgmtResponse](AuctionActorManager.GetAllAuctions)
+      .flatMap {
+        case AuctionActorManager.AggregatedAuctionDetails(auctionDetails)=>
+          logger.debug(s"got response from AuctionActorManager: ${auctionDetails}")
+          Future.sequence(auctionDetails.collect {
+            case AuctionActorManager.AuctionDetail(id, AuctionStates.Started)=>
+              getLotsByAuction(id).collect {
+                case Right(lots)=>
+                  Right((id -> lots))
+              }
+            case AuctionActorManager.AuctionDetail(id, _)=>
+              logger.debug(s"got closed auction detail for auction [$id]")
+              Future.successful(Right( (id -> Seq.empty[Lot])) )
+          }).map(_.collect {
+            case Right((auctionId, lots)) =>
+              auctionDetails.find(_.id == auctionId).map(a=> Auction(a.id, a.status, lots.map(_.id)))
+          }.flatten).map(Right(_))
+
+        case other=>
+          logger.error(s"Sent [GetAllAuctions] message to actor but received unexpected [$other] message.")
+          Future.successful(Left(ServiceFailure.UnexpectedResponse(s"Get all auctions received unexpected response. See logs for details.")))
+      }.recover {
+      case exception: Throwable=>
+        val errorMsg = "Exception in getAuctions"
+        logger.error(errorMsg, exception)
+        Left(ServiceFailure.UnexpectedFailure(s"$errorMsg. See logs for details."))
+    }
+  }
 
   override def addLot(auctionId: String, description: Option[String],
                       minBidAmount: Option[BigDecimal]): Future[Either[ServiceFailure, Lot]] = {

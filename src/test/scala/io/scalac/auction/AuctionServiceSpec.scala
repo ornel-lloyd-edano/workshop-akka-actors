@@ -37,15 +37,20 @@ class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Match
     }
   }
 
-  "AuctionService" should "get all available auctions" ignore {
+  "AuctionService" should "get all available auctions" in {
     val actor = testKit.spawn(AuctionActorManager())
     val auctionService = new DefaultAuctionService(actor)
-    val result = Future.sequence(Seq(auctionService.createAuction, auctionService.createAuction, auctionService.createAuction, auctionService.createAuction))
-      .flatMap(_=> auctionService.getAuctions)
+    val result = Future.sequence(
+      Seq(
+        auctionService.createAuction,
+        auctionService.createAuction,
+        auctionService.createAuction,
+        auctionService.createAuction)
+    ).flatMap(_=> auctionService.getAuctions)
 
-    val expected = Seq("1", "2", "3", "4").map(id=> Right(Auction(id, AuctionStates.Closed, Seq())))
+    val expected = Right(Seq("1", "2", "3", "4").map(id=> Auction(id, AuctionStates.Closed, Seq())))
     result map { result=>
-      result.map(_.sortBy(_.id)) should be (expected)
+      result should be (expected)
     }
   }
 
