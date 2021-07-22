@@ -1,10 +1,9 @@
 package io.scalac.auction
 
-import java.util.UUID
-
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import io.scalac.auction.AuctionActor._
+import io.scalac.auction.model.AuctionStatus
 
 object AuctionActorManager {
 
@@ -12,6 +11,7 @@ object AuctionActorManager {
   sealed trait AuctionMgmtResponse
 
   final case class Create(replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
+  final case class GetAllAuctions(replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class Start(auctionId: String, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class Stop(auctionId: String, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class AddLot(auctionId: String, description: Option[String],
@@ -25,6 +25,8 @@ object AuctionActorManager {
 
 
   final case class Created(auctionId: String) extends AuctionMgmtResponse
+  final case class AuctionDetail(id: String, status: AuctionStatus, lotIds: Seq[String])
+  final case class AggregatedAuctionDetails(auctionDetails: Seq[AuctionDetail])
   final case class Started(auctionId: String) extends AuctionMgmtResponse
   final case class Stopped(auctionId: String) extends AuctionMgmtResponse
   final case class LotAdded(auctionId: String, lotId: String) extends AuctionMgmtResponse
@@ -43,7 +45,9 @@ object AuctionActorManager {
     Behaviors.withStash(100) { buffer=>
       Behaviors.setup(context => new AuctionActorManager(buffer, context).running(None))
     }
-  def apply(): Behavior[AuctionMgmtCommand] = singleton
+  def apply(): Behavior[AuctionMgmtCommand] = Behaviors.withStash(100) { buffer=>
+    Behaviors.setup(context => new AuctionActorManager(buffer, context).running(None))
+  }
 
 }
 
@@ -63,6 +67,13 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
       auctionActors += (auctionId -> auctionActor)
       replyTo ! Created(auctionId)
       running(Some(replyTo))
+
+    case GetAllAuctions(replyTo)=>
+      /*
+      TODO: call GetAllLotsByAuction for every actor in auctionActors
+       then aggregate all results (note that each response to GetAllLotsByAuction is by itself an aggregated result)
+       */
+      Behaviors.same
 
     case AddLot(auctionId, maybeDescription, maybeMinBidAmount, replyTo)=>
       auctionActors.get(auctionId) match {
@@ -168,7 +179,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
           replyTo.foreach(_ ! BidRejected(userId, lotId))
         case AuctionActor.LotNotFound(auctionId, lotId)=>
           replyTo.foreach(_ ! LotNotFound(auctionId, lotId))
-        case AuctionActor.AuctionCommandRejected(auctionId)=>
+        case AuctionActor.AuctionCommandRejected(_)=>
           replyTo.foreach(_ ! CommandRejected)
       }
       Behaviors.same

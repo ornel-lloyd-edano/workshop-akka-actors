@@ -12,9 +12,9 @@ trait  AuctionService {
 
   def addLot(auctionId: String, description: Option[String], minBidAmount: Option[BigDecimal]): Future[Either[ServiceFailure, Lot]]
 
-  def startAuction(auctionId: String): Future[Either[ServiceFailure, Auction]]
+  def startAuction(auctionId: String): Future[Either[ServiceFailure, Unit]]
 
-  def endAuction(auctionId: String): Future[Either[ServiceFailure, Auction]]
+  def endAuction(auctionId: String): Future[Either[ServiceFailure, Unit]]
 
   def getLotById(auctionId: String, lotId: String): Future[Either[ServiceFailure, Lot]]
 

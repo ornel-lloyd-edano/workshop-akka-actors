@@ -1,12 +1,15 @@
 package io.scalac.auction.model
 
 sealed trait ServiceFailure {
-  val errorMsg: String
+  val message: String
 }
 
 object ServiceFailure {
-  final case class AuctionNotYetStarted(errorMsg: String) extends ServiceFailure
-  final case class AuctionAlreadyStopped(errorMsg: String) extends ServiceFailure
-  final case class AuctionNotFound(errorMsg: String) extends ServiceFailure
-  final case class LotNotFound(errorMsg: String) extends ServiceFailure
+  final case class AuctionNotReady(message: String) extends ServiceFailure
+  final case class AuctionNotFound(message: String) extends ServiceFailure
+  final case class LotNotFound(message: String) extends ServiceFailure
+  final case class BidRejected(message: String) extends ServiceFailure
+
+  final case class UnexpectedFailure(message: String) extends ServiceFailure
+  final case class UnexpectedResponse(message: String) extends ServiceFailure
 }
