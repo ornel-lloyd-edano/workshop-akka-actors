@@ -29,7 +29,7 @@ object AuctionActor {
 
   final case class Bid(userId: String, lotId: String, amount: BigDecimal,
                        maxBidAmount: BigDecimal, replyTo: ActorRef[AuctionResponse]) extends AuctionCommand with InProgressStateCommand {
-    require(maxBidAmount > amount)
+    require(maxBidAmount >= amount)
   }
 
   final case class WrappedLotActorResponse(response: LotActor.LotResponse) extends  AuctionCommand

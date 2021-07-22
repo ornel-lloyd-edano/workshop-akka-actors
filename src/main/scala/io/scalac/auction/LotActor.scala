@@ -12,7 +12,7 @@ object LotActor {
 
   sealed trait LotCommand
   final case class Bid(userId: String, amount: BigDecimal, maxBidAmount: BigDecimal,  replyTo: ActorRef[LotResponse]) extends LotCommand {
-    require(maxBidAmount > amount)
+    require(maxBidAmount >= amount)
   }
   final case class GetDetails(replyTo: ActorRef[LotResponse]) extends LotCommand
 
