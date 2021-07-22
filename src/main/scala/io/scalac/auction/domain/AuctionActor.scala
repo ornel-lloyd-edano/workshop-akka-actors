@@ -1,10 +1,8 @@
-package io.scalac.auction
+package io.scalac.auction.domain
 
-import akka.actor.typed.scaladsl.StashBuffer
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
-import akka.actor.typed.scaladsl.ActorContext
-import akka.actor.typed.scaladsl.Behaviors
-import io.scalac.auction.AuctionActor.AuctionCommand
+import io.scalac.auction.domain.AuctionActor.AuctionCommand
 
 object AuctionActor {
 

@@ -1,11 +1,9 @@
-package io.scalac.auction
+package io.scalac.auction.domain
 
-import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import io.scalac.auction.AuctionActor._
-import io.scalac.auction.model.{AuctionStates, AuctionStatus}
-
-import scala.collection.immutable
+import akka.actor.typed.{ActorRef, Behavior}
+import io.scalac.auction.domain.AuctionActor.AuctionCommand
+import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
 
 object AuctionActorManager {
 

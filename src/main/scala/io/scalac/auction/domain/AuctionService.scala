@@ -1,6 +1,6 @@
-package io.scalac.auction
+package io.scalac.auction.domain
 
-import io.scalac.auction.model.{Auction, AuctionId, Lot, ServiceFailure}
+import io.scalac.auction.domain.model.{Auction, AuctionId, Lot, ServiceFailure}
 
 import scala.concurrent.Future
 

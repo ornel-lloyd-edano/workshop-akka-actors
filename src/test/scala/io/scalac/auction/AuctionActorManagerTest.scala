@@ -2,8 +2,9 @@ package io.scalac.auction
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import io.scalac.auction
-import io.scalac.auction.AuctionActorManager.{AggregatedAuctionDetails, AuctionDetail}
-import io.scalac.auction.model.AuctionStates
+import io.scalac.auction.domain.AuctionActorManager
+import io.scalac.auction.domain.AuctionActorManager.{AggregatedAuctionDetails, AuctionDetail}
+import io.scalac.auction.domain.model.AuctionStates
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -13,7 +14,7 @@ class AuctionActorManagerTest extends AnyWordSpec with BeforeAndAfterAll with Ma
   override def afterAll(): Unit = testKit.shutdownTestKit()
 
   val auctionMgrActor = testKit.spawn(AuctionActorManager())
-  val probe = testKit.createTestProbe[auction.AuctionActorManager.AuctionMgmtResponse]()
+  val probe = testKit.createTestProbe[AuctionActorManager.AuctionMgmtResponse]()
 
   "AuctionActorManager" should {
     "accept Create and reply with Created" in {

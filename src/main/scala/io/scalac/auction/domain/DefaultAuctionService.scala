@@ -1,13 +1,13 @@
-package io.scalac.auction
+package io.scalac.auction.domain
 
-import akka.actor.typed.{ActorRef, Scheduler}
 import akka.actor.typed.scaladsl.AskPattern._
+import akka.actor.typed.{ActorRef, Scheduler}
 import akka.util.Timeout
-import io.scalac.auction.model.{Auction, AuctionId, AuctionStates, Lot, ServiceFailure}
+import io.scalac.auction.domain.model._
 import io.scalac.util.{ConfigProvider, ExecutionContextProvider}
 
-import scala.concurrent.duration._
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.AuctionMgmtCommand])
                            (implicit ecProvider: ExecutionContextProvider, config: ConfigProvider, scheduler: Scheduler, logger: org.slf4j.Logger) extends AuctionService {

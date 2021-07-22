@@ -3,6 +3,7 @@ package io.scalac.auction
 import java.util.UUID
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import io.scalac.auction.domain.AuctionActor
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec

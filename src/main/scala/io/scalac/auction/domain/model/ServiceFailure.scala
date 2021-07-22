@@ -1,4 +1,4 @@
-package io.scalac.auction.model
+package io.scalac.auction.domain.model
 
 sealed trait ServiceFailure {
   val message: String
