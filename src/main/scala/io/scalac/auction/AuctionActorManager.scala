@@ -5,6 +5,8 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import io.scalac.auction.AuctionActor._
 import io.scalac.auction.model.{AuctionStates, AuctionStatus}
 
+import scala.collection.immutable
+
 object AuctionActorManager {
 
   sealed trait AuctionMgmtCommand
@@ -51,8 +53,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
                                   context: ActorContext[AuctionActorManager.AuctionMgmtCommand]) {
   import AuctionActorManager._
 
-  private var auctionActors = Map[String, ActorRef[AuctionCommand]]()
-  private var auctionStatuses = Map[String, AuctionStatus]()
+  private var auctionActors = Map[String, (ActorRef[AuctionCommand], AuctionStatus)]()
   private var idCounter: Int = 0
   val auctionActorMsgAdapter: ActorRef[AuctionActor.AuctionResponse] = context.messageAdapter(WrappedAuctionActorResponse(_))
 
@@ -61,24 +62,22 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
       idCounter += 1
       val auctionId = idCounter.toString
       val auctionActor = context.spawn(AuctionActor(auctionId), s"AuctionActor-$auctionId")
-      auctionActors += (auctionId -> auctionActor)
-      auctionStatuses += (auctionId -> AuctionStates.Closed)
+      auctionActors += (auctionId -> (auctionActor, AuctionStates.Closed))
       replyTo ! Created(auctionId)
       running(Some(replyTo))
 
     case GetAllAuctions(replyTo)=>
-      val results = auctionActors.keys.flatMap(id=> auctionStatuses.find(_._1 == id) match {
-        case Some((_, status))=>
-          Some(AuctionDetail(id, status))
-        case _=>
-          None
-      }).toSeq.sortBy(_.id)
+      val results = auctionActors.map {
+        case (id, (_, status))=>
+          AuctionDetail(id, status)
+      }.toSeq.sortBy(_.id)
+
       replyTo ! AggregatedAuctionDetails(results)
       Behaviors.same
 
     case AddLot(auctionId, maybeDescription, maybeMinBidAmount, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor)=>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.AddLot(maybeDescription, maybeMinBidAmount, auctionActorMsgAdapter)
         case None=>
           context.log.warn(s"Unable to add a lot to auction $auctionId because auction was not found")
@@ -88,7 +87,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
 
     case RemoveLot(auctionId, lotId, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor) =>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.RemoveLot(lotId, auctionActorMsgAdapter)
         case None=>
           context.log.warn(s"Unable to remove a lot from auction $auctionId because auction was not found")
@@ -98,7 +97,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
 
     case RemoveAllLots(auctionId, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor)=>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.RemoveAllLots(auctionActorMsgAdapter)
         case _=>
           context.log.warn(s"Unable to remove lots from auction $auctionId because auction was not found")
@@ -108,7 +107,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
 
     case Start(auctionId, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor)=>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.Start(auctionActorMsgAdapter)
         case _=>
           context.log.warn(s"Unable to start auction $auctionId because it was not found")
@@ -118,7 +117,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
 
     case Bid(userId, auctionId, lotId, amount, maxBidAmount, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor)=>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.Bid(userId, lotId, amount, maxBidAmount, auctionActorMsgAdapter)
         case _=>
           context.log.warn(s"Unable to bid lot at auction $auctionId because auction was not found")
@@ -128,7 +127,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
 
     case GetLot(auctionId, lotId, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor)=>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.GetLot(lotId, auctionActorMsgAdapter)
         case _=>
           context.log.warn(s"Unable to get lot at auction $auctionId because auction was not found")
@@ -138,7 +137,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
 
     case GetAllLotsByAuction(auctionId, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor)=>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.GetAllLots(auctionActorMsgAdapter)
         case _=>
           context.log.warn(s"Unable to get all lots at auction $auctionId because auction was not found")
@@ -148,7 +147,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
 
     case Stop(auctionId, replyTo)=>
       auctionActors.get(auctionId) match {
-        case Some(auctionActor)=>
+        case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.Stop(auctionActorMsgAdapter)
         case _=>
           context.log.warn(s"Unable to stop auction $auctionId because it was not found")
@@ -171,10 +170,16 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
           replyTo.foreach(_ ! AggregatedLotDetails(lotDetails.map(ld=>
             LotDetails(ld.auctionId, ld.lotId, ld.description, ld.currentTopBidder, ld.currentBidAmount))))
         case AuctionActor.Started(auctionId)=>
-          auctionStatuses += (auctionId -> AuctionStates.Started)
+          auctionActors.find(_._1 == auctionId).foreach {
+            case (_, (actorRef, _))=>
+              auctionActors += (auctionId -> (actorRef, AuctionStates.Started))
+          }
           replyTo.foreach(_ ! Started(auctionId))
         case AuctionActor.Stopped(auctionId)=>
-          auctionStatuses += (auctionId -> AuctionStates.Stopped)
+          auctionActors.find(_._1 == auctionId).foreach {
+            case (_, (actorRef, _))=>
+              auctionActors += (auctionId -> (actorRef, AuctionStates.Stopped))
+          }
           replyTo.foreach(_ ! Stopped(auctionId))
         case AuctionActor.BidAccepted(_, userId, lotId)=>
           replyTo.foreach(_ ! BidAccepted(userId, lotId))
