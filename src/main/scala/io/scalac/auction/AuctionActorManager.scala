@@ -3,7 +3,7 @@ package io.scalac.auction
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import io.scalac.auction.AuctionActor._
-import io.scalac.auction.model.AuctionStatus
+import io.scalac.auction.model.{AuctionStates, AuctionStatus}
 
 object AuctionActorManager {
 
@@ -25,8 +25,8 @@ object AuctionActorManager {
 
 
   final case class Created(auctionId: String) extends AuctionMgmtResponse
-  final case class AuctionDetail(id: String, status: AuctionStatus, lotIds: Seq[String])
-  final case class AggregatedAuctionDetails(auctionDetails: Seq[AuctionDetail])
+  final case class AuctionDetail(id: String, status: AuctionStatus)
+  final case class AggregatedAuctionDetails(auctionDetails: Seq[AuctionDetail]) extends AuctionMgmtResponse
   final case class Started(auctionId: String) extends AuctionMgmtResponse
   final case class Stopped(auctionId: String) extends AuctionMgmtResponse
   final case class LotAdded(auctionId: String, lotId: String) extends AuctionMgmtResponse
@@ -56,6 +56,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
   import AuctionActorManager._
 
   private var auctionActors = Map[String, ActorRef[AuctionCommand]]()
+  private var auctionStatuses = Map[String, AuctionStatus]()
   private var idCounter: Int = 0
   val auctionActorMsgAdapter: ActorRef[AuctionActor.AuctionResponse] = context.messageAdapter(WrappedAuctionActorResponse(_))
 
@@ -65,14 +66,18 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
       val auctionId = idCounter.toString
       val auctionActor = context.spawn(AuctionActor(auctionId), s"AuctionActor-$auctionId")
       auctionActors += (auctionId -> auctionActor)
+      auctionStatuses += (auctionId -> AuctionStates.Closed)
       replyTo ! Created(auctionId)
       running(Some(replyTo))
 
     case GetAllAuctions(replyTo)=>
-      /*
-      TODO: call GetAllLotsByAuction for every actor in auctionActors
-       then aggregate all results (note that each response to GetAllLotsByAuction is by itself an aggregated result)
-       */
+      val results = auctionActors.keys.flatMap(id=> auctionStatuses.find(_._1 == id) match {
+        case Some((_, status))=>
+          Some(AuctionDetail(id, status))
+        case _=>
+          None
+      }).toSeq.sortBy(_.id)
+      replyTo ! AggregatedAuctionDetails(results)
       Behaviors.same
 
     case AddLot(auctionId, maybeDescription, maybeMinBidAmount, replyTo)=>
@@ -170,8 +175,10 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
           replyTo.foreach(_ ! AggregatedLotDetails(lotDetails.map(ld=>
             LotDetails(ld.auctionId, ld.lotId, ld.description, ld.currentTopBidder, ld.currentBidAmount))))
         case AuctionActor.Started(auctionId)=>
+          auctionStatuses += (auctionId -> AuctionStates.Started)
           replyTo.foreach(_ ! Started(auctionId))
         case AuctionActor.Stopped(auctionId)=>
+          auctionStatuses += (auctionId -> AuctionStates.Stopped)
           replyTo.foreach(_ ! Stopped(auctionId))
         case AuctionActor.BidAccepted(_, userId, lotId)=>
           replyTo.foreach(_ ! BidAccepted(userId, lotId))

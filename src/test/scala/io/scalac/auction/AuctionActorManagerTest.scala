@@ -2,6 +2,8 @@ package io.scalac.auction
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import io.scalac.auction
+import io.scalac.auction.AuctionActorManager.{AggregatedAuctionDetails, AuctionDetail}
+import io.scalac.auction.model.AuctionStates
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -17,6 +19,10 @@ class AuctionActorManagerTest extends AnyWordSpec with BeforeAndAfterAll with Ma
     "accept Create and reply with Created" in {
       auctionMgrActor ! AuctionActorManager.Create(probe.ref)
       probe.expectMessage(AuctionActorManager.Created("1"))
+      auctionMgrActor ! AuctionActorManager.Create(probe.ref)
+      probe.expectMessage(AuctionActorManager.Created("2"))
+      auctionMgrActor ! AuctionActorManager.Create(probe.ref)
+      probe.expectMessage(AuctionActorManager.Created("3"))
     }
 
     "accept AddLot and reply with LotAdded" in {
@@ -67,6 +73,15 @@ class AuctionActorManagerTest extends AnyWordSpec with BeforeAndAfterAll with Ma
     "accept Start and reply with Started" in {
       auctionMgrActor ! AuctionActorManager.Start("1", probe.ref)
       probe.expectMessage(AuctionActorManager.Started("1"))
+    }
+
+    "accept GetAllAuctions and reply with AggregatedAuctionDetails" in {
+      auctionMgrActor ! AuctionActorManager.GetAllAuctions(probe.ref)
+      val expected = AggregatedAuctionDetails(Seq(
+        AuctionDetail("1", AuctionStates.Started),
+        AuctionDetail("2", AuctionStates.Closed),
+        AuctionDetail("3", AuctionStates.Closed)))
+      probe.expectMessage(expected)
     }
 
     "able to accept Bid after auction is started" in {
