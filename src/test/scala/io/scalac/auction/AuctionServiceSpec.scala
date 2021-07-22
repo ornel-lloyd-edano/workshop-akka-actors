@@ -1,7 +1,6 @@
 package io.scalac.auction
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import akka.util.Timeout
 import io.scalac.auction.model.ServiceFailure.{AuctionNotReady}
 import io.scalac.auction.model.{Auction, AuctionId, AuctionStates, Lot, ServiceFailure}
 import io.scalac.util.{Configs, ExecutionContexts}
@@ -10,14 +9,12 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import scala.concurrent.duration._
 import scala.concurrent.Future
 
 class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Matchers with AsyncMockFactory  {
   implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
 
   val testKit = ActorTestKit()
-  implicit val timeout = Timeout(10 seconds)
   implicit val scheduler = testKit.scheduler
   implicit val ecProvider = ExecutionContexts
   implicit val confProvider = Configs
