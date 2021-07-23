@@ -87,6 +87,8 @@ class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.Auction
           Right(())
         case AuctionActorManager.AuctionNotFound(auctionId)=>
           Left(ServiceFailure.AuctionNotFound(s"Start auction failed because auction [$auctionId] was not found."))
+        case AuctionActorManager.CommandRejected=>
+          Left(ServiceFailure.AuctionNotReady(s"Unable to restart an auction that was already stopped."))
         case other=>
           logger.error(s"Sent [Start] message to actor but received unexpected [$other] message.")
           Left(ServiceFailure.UnexpectedResponse(s"Start auction [$auctionId] received unexpected response. See logs for details."))
