@@ -10,7 +10,7 @@ import scala.util.{Failure, Success}
 
 class AuctionServiceController(auctionService: AuctionService) extends Directives with SprayJsonSupport {
 
-  def createAuctionRoute: Route = path("auctions") {
+  def createAuction: Route = path("auctions") {
     post {
       onComplete(auctionService.createAuction) {
         case Success(Right(auctionId))=>
@@ -23,7 +23,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
     }
   }
 
-  def startAuctionRoute: Route = path("auctions" / Segment / "start") { auctionId=>
+  //Note: this route is more like RPC-style than Restful style
+  def startAuction: Route = path("auctions" / Segment / "start") { auctionId=>
       put {
         onComplete(auctionService.startAuction(auctionId)) {
           case Success(Right(_))=>
@@ -40,20 +41,21 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
       }
   }
 
-    def endAuctionRoute: Route = path("auctions" / Segment / "end") { auctionId=>
-      put {
-        onComplete(auctionService.startAuction(auctionId)) {
-          case Success(Right(_))=>
-            complete(StatusCodes.OK, s"Auction [$auctionId] ended.")
-          case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-            complete(StatusCodes.NotFound, message)
-          case Success(Left(otherFailure))=>
-            complete(StatusCodes.InternalServerError, otherFailure.message)
-          case Failure(exception)=>
-            complete(StatusCodes.InternalServerError, exception.getMessage)
-        }
+  //Note: this route is more like RPC-style than Restful style
+  def endAuction: Route = path("auctions" / Segment / "end") { auctionId=>
+    put {
+      onComplete(auctionService.endAuction(auctionId)) {
+        case Success(Right(_))=>
+          complete(StatusCodes.OK, s"Auction [$auctionId] ended.")
+        case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+          complete(StatusCodes.NotFound, message)
+        case Success(Left(otherFailure))=>
+          complete(StatusCodes.InternalServerError, otherFailure.message)
+        case Failure(exception)=>
+          complete(StatusCodes.InternalServerError, exception.getMessage)
       }
     }
+  }
 
   def getAllAuctions: Route = path("auctions") {
     get {
@@ -73,7 +75,7 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
     post {
       onComplete(auctionService.addLot(auctionId, None, None)) {
         case Success(Right(lot))=>
-          complete(StatusCodes.Created, s"Lot [${lot}] is created.")
+          complete(StatusCodes.Created, s"Lot [${lot}] in auction [$auctionId] is created.")
         case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
           complete(StatusCodes.NotFound, message)
         case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
@@ -108,7 +110,7 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
     }
   }
 
-  def getLotByIdRoute: Route = path("auctions" / Segment / "lots" / Segment) { (auctionId, lotId) =>
+  def getLotById: Route = path("auctions" / Segment / "lots" / Segment) { (auctionId, lotId) =>
     get {
       onComplete(auctionService.getLotById(auctionId, lotId)) {
         case Success(Right(lot))=>
@@ -128,7 +130,7 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
     }
   }
 
-  def getLotsByAuctionRoute: Route = path("auctions" / Segment / "lots") { auctionId =>
+  def getLotsByAuction: Route = path("auctions" / Segment / "lots") { auctionId =>
     get {
       onComplete(auctionService.getLotsByAuction(auctionId)) {
         case Success(Right(lots))=>
