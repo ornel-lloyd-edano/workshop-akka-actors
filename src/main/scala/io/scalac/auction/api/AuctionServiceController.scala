@@ -1,14 +1,19 @@
 package io.scalac.auction.api
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes}
-import akka.http.scaladsl.server.{Directives, Route}
+import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import io.scalac.auction.api.dto.{AddLot, UserBid}
+import io.scalac.auction.api.formats.JsonFormatter
 import io.scalac.auction.domain.AuctionService
 import io.scalac.auction.domain.model.ServiceFailure
+import io.scalac.domain.api.mapping.Implicits._
+import io.scalac.util.http.PayloadConverter
 
 import scala.util.{Failure, Success}
 
-class AuctionServiceController(auctionService: AuctionService) extends Directives with SprayJsonSupport {
+class AuctionServiceController(auctionService: AuctionService) extends SprayJsonSupport with JsonFormatter with PayloadConverter {
 
   def createAuction: Route = path("auctions") {
     post {
@@ -61,8 +66,7 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
     get {
       onComplete(auctionService.getAuctions) {
         case Success(Right(auctions))=>
-          //TODO create marshaller for auctions and include it in response
-          complete(StatusCodes.OK)
+          complete(StatusCodes.OK, auctions.map(_.toApi).toJsonHttpEntity)
         case Success(Left(failure))=>
           complete(StatusCodes.InternalServerError, failure.message)
         case Failure(exception)=>
@@ -73,39 +77,44 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
 
   def createLot: Route = path("auctions" / Segment / "lots") { auctionId=>
     post {
-      onComplete(auctionService.addLot(auctionId, None, None)) {
-        case Success(Right(lot))=>
-          complete(StatusCodes.Created, s"Lot [${lot}] in auction [$auctionId] is created.")
-        case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-          complete(StatusCodes.NotFound, message)
-        case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
-          complete(StatusCodes.BadRequest, message)
-        case Success(Left(otherFailure))=>
-          complete(StatusCodes.InternalServerError, otherFailure.message)
-        case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+      entity(as[AddLot]) { addLot=>
+        onComplete(auctionService.addLot(auctionId, addLot.description, addLot.minBidAmount)) {
+          case Success(Right(lot))=>
+            complete(StatusCodes.Created, s"Lot [${lot}] in auction [$auctionId] is created.")
+          case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+            complete(StatusCodes.NotFound, message)
+          case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
+            complete(StatusCodes.BadRequest, message)
+          case Success(Left(otherFailure))=>
+            complete(StatusCodes.InternalServerError, otherFailure.message)
+          case Failure(exception)=>
+            complete(StatusCodes.InternalServerError, exception.getMessage)
+        }
       }
     }
   }
 
   def bid: Route = path("auctions" / Segment / "lots" / Segment) { (auctionId, lotId)=>
     post {
-      //TODO extract userId, amount, and maxAmount from request payload json
-      onComplete(auctionService.bid(auctionId, lotId, "userId", BigDecimal(0), Some(BigDecimal(0)))) {
-        case Success(Right(lot))=>
-          complete(StatusCodes.Created, s"Bid to lot [${lot}] is successful.")
-        case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-          complete(StatusCodes.NotFound, message)
-        case Success(Left(ServiceFailure.LotNotFound(message)))=>
-          complete(StatusCodes.NotFound, message)
-        case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
-          complete(StatusCodes.BadRequest, message)
-        case Success(Left(ServiceFailure.BidRejected(message)))=>
-          complete(StatusCodes.BadRequest, message)
-        case Success(Left(otherFailure))=>
-          complete(StatusCodes.InternalServerError, otherFailure.message)
-        case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+      entity(as[UserBid]) { userBid=>
+        val serviceCall = auctionService.bid(auctionId, lotId, userId = userBid.userId,
+          amount = userBid.amount, maxAmount = userBid.maxBid)
+        onComplete(serviceCall) {
+          case Success(Right(lot))=>
+            complete(StatusCodes.OK, s"Bid to lot [${lot.id}] in auction [$auctionId] is successful.")
+          case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+            complete(StatusCodes.NotFound, message)
+          case Success(Left(ServiceFailure.LotNotFound(message)))=>
+            complete(StatusCodes.NotFound, message)
+          case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
+            complete(StatusCodes.BadRequest, message)
+          case Success(Left(ServiceFailure.BidRejected(message)))=>
+            complete(StatusCodes.BadRequest, message)
+          case Success(Left(otherFailure))=>
+            complete(StatusCodes.InternalServerError, otherFailure.message)
+          case Failure(exception)=>
+            complete(StatusCodes.InternalServerError, exception.getMessage)
+        }
       }
     }
   }
@@ -114,8 +123,7 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
     get {
       onComplete(auctionService.getLotById(auctionId, lotId)) {
         case Success(Right(lot))=>
-          //TODO create marshaller for Lot
-          complete(StatusCodes.OK)
+          complete(StatusCodes.OK, lot.toApi.toJsonHttpEntity)
         case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
           complete(StatusCodes.NotFound, message)
         case Success(Left(ServiceFailure.LotNotFound(message)))=>
@@ -134,8 +142,7 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
     get {
       onComplete(auctionService.getLotsByAuction(auctionId)) {
         case Success(Right(lots))=>
-          //TODO create marshaller for Lot
-          complete(StatusCodes.OK)
+          complete(StatusCodes.OK,  lots.map(_.toApi).toJsonHttpEntity )
         case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
           complete(StatusCodes.NotFound, message)
         case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
