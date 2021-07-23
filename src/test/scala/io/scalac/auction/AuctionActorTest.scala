@@ -69,9 +69,9 @@ class AuctionActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers 
       probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
     }
 
-    "ignore Start message" in {
+    "still accept Start message idempotently" in {
       auctionActor ! AuctionActor.Start(probe.ref)
-      probe.expectMessage(AuctionActor.AuctionCommandRejected(auctionId))
+      probe.expectMessage(AuctionActor.Started(auctionId))
     }
 
     "accept GetLot and reply with LotDetails" in {

@@ -142,6 +142,10 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
         replyTo ! Stopped(id)
         stopped(replyTo)
 
+      case Start(replyTo)=>
+        replyTo ! Started(id)
+        Behaviors.same
+
       case other: ClosedStateCommand=>
         context.log.warn(s"Unable to process this message [$other] because AuctionActor $id is in In-Progress state.")
         other.replyTo ! AuctionCommandRejected(id)
@@ -167,6 +171,9 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
     }
 
   private def stopped(replyTo: ActorRef[AuctionResponse]): Behavior[AuctionCommand] = Behaviors.receiveMessage {
+    case Stop(replyTo)=>
+      replyTo ! Stopped(id)
+      Behaviors.same
     case _=>
       context.log.warn(s"AuctionActor $id is already stopped and cannot process anymore commands.")
       replyTo ! AuctionCommandRejected(id)
