@@ -95,6 +95,10 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
         replyTo ! Started(id)
         inProgress(replyTo)
 
+      case Stop(replyTo)=>
+        replyTo ! Stopped(id)
+        stopped(replyTo)
+
       case other: InProgressStateCommand=>
         context.log.warn(s"Unable to process this message [$other] because AuctionActor $id is in Closed state.")
         other.replyTo ! AuctionCommandRejected(id)
