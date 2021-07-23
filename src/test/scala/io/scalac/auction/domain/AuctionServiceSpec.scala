@@ -1,9 +1,8 @@
-package io.scalac.auction
+package io.scalac.auction.domain
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import io.scalac.auction.domain.{AuctionActorManager, DefaultAuctionService}
 import io.scalac.auction.domain.model.ServiceFailure.AuctionNotReady
-import io.scalac.auction.domain.model.{Auction, AuctionId, AuctionStates, Lot, ServiceFailure}
+import io.scalac.auction.domain.model._
 import io.scalac.util.{Configs, ExecutionContexts}
 import org.scalamock.scalatest.AsyncMockFactory
 import org.scalatest.BeforeAndAfterAll

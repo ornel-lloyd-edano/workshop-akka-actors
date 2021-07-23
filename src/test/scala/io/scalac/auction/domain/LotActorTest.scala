@@ -1,9 +1,8 @@
-package io.scalac.auction
+package io.scalac.auction.domain
 
 import java.util.UUID
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import io.scalac.auction.domain.LotActor
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec

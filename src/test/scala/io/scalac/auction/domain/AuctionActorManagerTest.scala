@@ -1,8 +1,6 @@
-package io.scalac.auction
+package io.scalac.auction.domain
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import io.scalac.auction
-import io.scalac.auction.domain.AuctionActorManager
 import io.scalac.auction.domain.AuctionActorManager.{AggregatedAuctionDetails, AuctionDetail}
 import io.scalac.auction.domain.model.AuctionStates
 import org.scalatest.BeforeAndAfterAll
