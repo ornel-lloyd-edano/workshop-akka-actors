@@ -63,10 +63,10 @@ class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Match
     } yield (Seq(result1, result2, result3))
 
 
-    val expected = Seq("1", "2", "3").map(id=> Right(Lot(id, "1", Some(s"secret box$id"), None, None)))
+    val expected = Seq("1", "2", "3").map(id=> Right(LotId(id)))
     results map { result=>
       result.sortBy {
-        case Right(lot)=> lot.id + lot.auctionId
+        case Right(lot)=> lot.id
       } should be (expected)
     }
   }

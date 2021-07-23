@@ -1,6 +1,6 @@
 package io.scalac.auction.domain
 
-import io.scalac.auction.domain.model.{Auction, AuctionId, Lot, ServiceFailure}
+import io.scalac.auction.domain.model.{Auction, AuctionId, Lot, LotId, ServiceFailure}
 
 import scala.concurrent.Future
 
@@ -10,7 +10,7 @@ trait  AuctionService {
 
   def getAuctions: Future[Either[ServiceFailure, Seq[Auction]]]
 
-  def addLot(auctionId: String, description: Option[String], minBidAmount: Option[BigDecimal]): Future[Either[ServiceFailure, Lot]]
+  def addLot(auctionId: String, description: Option[String], minBidAmount: Option[BigDecimal]): Future[Either[ServiceFailure, LotId]]
 
   def startAuction(auctionId: String): Future[Either[ServiceFailure, Unit]]
 

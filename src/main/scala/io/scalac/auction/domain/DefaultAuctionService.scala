@@ -60,10 +60,10 @@ class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.Auction
   }
 
   override def addLot(auctionId: String, description: Option[String],
-                      minBidAmount: Option[BigDecimal]): Future[Either[ServiceFailure, Lot]] = {
+                      minBidAmount: Option[BigDecimal]): Future[Either[ServiceFailure, LotId]] = {
     auctionManager.ask[AuctionActorManager.AuctionMgmtResponse](ref=> AuctionActorManager.AddLot(auctionId, description, minBidAmount, ref)).map {
       case AuctionActorManager.LotAdded(auctionId, lotId)=>
-        Right(Lot(lotId, auctionId, description, None, None))
+        Right(LotId(lotId))
       case AuctionActorManager.AuctionNotFound(auctionId)=>
         Left(ServiceFailure.AuctionNotFound(s"Lot was not added because auction [$auctionId] was not found."))
       case AuctionActorManager.CommandRejected=>
