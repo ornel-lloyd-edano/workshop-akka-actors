@@ -2,14 +2,20 @@ package io.scalac.auction.api
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.marshalling.Marshal
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{MessageEntity, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import com.github._3tty0n.jwt.JWT
 import io.scalac.auction.api.dto.{AddLot, UserBid}
 import io.scalac.auction.api.formats.JsonFormatter
 import io.scalac.auction.domain.AuctionService
 import io.scalac.auction.domain.model.ServiceFailure._
 import io.scalac.auction.domain.model.{Auction, AuctionId, AuctionStates, Lot, LotId}
+import io.scalac.auth.UserService
+import io.scalac.auth.UserService.UnknownUser
 import io.scalac.domain.api.mapping.Implicits._
+import io.scalac.util.{ConfigProvider, Configs}
+import io.scalac.util.json.Converters._
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
@@ -19,13 +25,15 @@ import spray.json._
 import scala.concurrent.Future
 
 class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFactory with ScalatestRouteTest with ScalaFutures with SprayJsonSupport with JsonFormatter {
-
+  implicit val config: ConfigProvider = Configs
   val mockAuctionService = mock[AuctionService]
-  val controller = new AuctionServiceController(mockAuctionService)
+  val mockUserService = mock[UserService]
+  val controller = new AuctionServiceController(mockAuctionService, mockUserService)
 
   "AuctionServiceController" should "respond with 201 Created along with id of created auction if create auction is successful" in {
     val mockServiceResponse = AuctionId("1")
     (mockAuctionService.createAuction _).expects().returning(Future.successful(Right(mockServiceResponse)))
+
     Post("/auctions") ~> controller.createAuction ~> check {
       status should be (StatusCodes.Created)
       val expected = s"Auction [${mockServiceResponse.id}] created."
@@ -389,4 +397,59 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
       entityAs[String] should be (mockServiceResponse.message)
     }
   }
+
+
+  //testing authenticated routes
+  "AuctionServiceController" should "respond with 201 Created along with id of created auction if create auction with valid token is successful" in {
+    val mockServiceResponse = AuctionId("1")
+    val mockUser = "ornel-lloyd-edano"
+    (mockUserService.authenticateUser _).expects(mockUser).returning(Right(()))
+    (mockAuctionService.createAuction _).expects().returning(Future.successful(Right(mockServiceResponse)))
+
+    val secret = controller.getSecret.get
+    val claims = play.api.libs.json.JsObject( Seq(("user" -> play.api.libs.json.JsString(mockUser)) ))
+    val token = JWT.encode(secret, claims)
+    val credential = OAuth2BearerToken(token)
+    Post("/auctions").addCredentials(credential) ~> controller.authenticatedRoutes ~> check {
+      status should be (StatusCodes.Created)
+      val expected = s"Auction [${mockServiceResponse.id}] created."
+      entityAs[String] should be (expected)
+    }
+  }
+
+  "AuctionServiceController" should "respond with 401 Unauthorized if create auction request did not have token" in {
+    Post("/auctions") ~> controller.authenticatedRoutes ~> check {
+      status should be (StatusCodes.Unauthorized)
+      val expected = s"Token missing in the request."
+      entityAs[String] should be (expected)
+    }
+  }
+
+  "AuctionServiceController" should "respond with 401 Unauthorized if create auction request has invalid token" in {
+    val secret = controller.getSecret.get
+    val claims = play.api.libs.json.JsObject( Seq(("some other claim key" -> play.api.libs.json.JsString("ornel-lloyd-edano")) ))
+    val token = JWT.encode(secret, claims)
+    val credential = OAuth2BearerToken(token)
+    Post("/auctions").addCredentials(credential) ~> controller.authenticatedRoutes ~> check {
+      status should be (StatusCodes.Unauthorized)
+      val expected = s"Invalid token."
+      entityAs[String] should be (expected)
+    }
+  }
+
+  "AuctionServiceController" should "respond with 401 Unauthorized if create auction request has unknown user in the token" in {
+    val mockUser = "ornel-lloyd-edano"
+    val mockServiceResponse = UnknownUser(s"User [$mockUser] is not registered.")
+    (mockUserService.authenticateUser _).expects(mockUser).returning(Left(mockServiceResponse))
+    val secret = controller.getSecret.get
+    val claims = play.api.libs.json.JsObject( Seq(("user" -> play.api.libs.json.JsString(mockUser)) ))
+    val token = JWT.encode(secret, claims)
+    val credential = OAuth2BearerToken(token)
+    Post("/auctions").addCredentials(credential) ~> controller.authenticatedRoutes ~> check {
+      status should be (StatusCodes.Unauthorized)
+      val expected = s"Invalid token."
+      entityAs[String] should be (expected)
+    }
+  }
+
 }

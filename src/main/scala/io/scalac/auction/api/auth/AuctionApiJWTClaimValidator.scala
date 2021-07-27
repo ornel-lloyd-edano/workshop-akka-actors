@@ -1,5 +1,6 @@
 package io.scalac.auction.api.auth
 
+import akka.http.scaladsl.server.Route
 import io.scalac.auth.UserService
 import io.scalac.auth.akkahttp.{JWTAuthenticator, JWTClaim, JWTClaims}
 import spray.json.JsString
@@ -19,4 +20,6 @@ trait AuctionApiJWTClaimValidator extends JWTAuthenticator {
         userService.authenticateUser(user).toOption
     }.map(_=> Success(()))
       .getOrElse(Failure(new Exception(s"Invalid token.")))
+
+  def authenticatedRoutes: Route
 }
