@@ -8,6 +8,8 @@ val akkaVersion = "2.6.15"
 val akkaHttpVersion = "10.2.4"
 
 libraryDependencies ++= Seq(
+  "com.github.3tty0n" %% "jwt-scala" % "1.3.0",
+
   "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
   "com.typesafe.akka" %% "akka-stream" % akkaVersion,
   "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
