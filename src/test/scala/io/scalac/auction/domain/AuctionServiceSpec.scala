@@ -1,6 +1,10 @@
 package io.scalac.auction.domain
 
+import akka.NotUsed
+import akka.actor.ActorSystem
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import akka.stream.Materializer
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import io.scalac.auction.domain.model.ServiceFailure.AuctionNotReady
 import io.scalac.auction.domain.model._
 import io.scalac.util.{Configs, ExecutionContexts}
@@ -9,16 +13,16 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import scala.concurrent.Future
+import scala.concurrent.{Future}
 
 class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Matchers with AsyncMockFactory  {
-  implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
 
   val testKit = ActorTestKit()
   implicit val scheduler = testKit.scheduler
   implicit val ecProvider = ExecutionContexts
+  implicit val ec = scala.concurrent.ExecutionContext.Implicits.global
+  implicit val mat = Materializer(ActorSystem("test"))
   implicit val confProvider = Configs
-  implicit val logger = testKit.system.log
 
   override def afterAll(): Unit = testKit.shutdownTestKit()
 
@@ -201,5 +205,61 @@ class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Match
     result map {result=>
       result should be (expected)
     }
+  }
+
+  "AuctionService with AuctionStreamingService" should "stream lot prices" in {
+    val actor = testKit.spawn(AuctionActorManager())
+    val auctionService = new DefaultAuctionService(actor)
+    val dataPreparation = for {
+      _ <- auctionService.createAuction
+      _ <- auctionService.addLot(auctionId = "1", description = Some("secret box1"), None)
+      _ <- auctionService.addLot(auctionId = "1", description = Some("secret box2"), None)
+      _ <- auctionService.addLot(auctionId = "1", description = Some("secret box3"), None)
+      _ <- auctionService.addLot(auctionId = "1", description = Some("secret box4"), None)
+      _ <- auctionService.addLot(auctionId = "1", description = Some("secret box5"), None)
+      _ <- auctionService.startAuction("1")
+      _ <- auctionService.bid(auctionId = "1", lotId = "1", userId = "user1", amount = BigDecimal(1000), None)
+      _ <- auctionService.bid(auctionId = "1", lotId = "2", userId = "user2", amount = BigDecimal(2000), None)
+      _ <- auctionService.bid(auctionId = "1", lotId = "3", userId = "user3", amount = BigDecimal(3000), None)
+      _ <- auctionService.bid(auctionId = "1", lotId = "4", userId = "user4", amount = BigDecimal(4000), None)
+      _ <- auctionService.bid(auctionId = "1", lotId = "5", userId = "user5", amount = BigDecimal(5000), None)
+      result <- auctionService.getLotsByAuction(auctionId = "1")
+    } yield result
+    val expectedMockData = Seq(
+      Lot("1", "1", Some("secret box1"), topBidder = Some("user1"), topBid = Some(BigDecimal(1000))),
+      Lot("2", "1", Some("secret box2"), topBidder = Some("user2"), topBid = Some(BigDecimal(2000))),
+      Lot("3", "1", Some("secret box3"), topBidder = Some("user3"), topBid = Some(BigDecimal(3000))),
+      Lot("4", "1", Some("secret box4"), topBidder = Some("user4"), topBid = Some(BigDecimal(4000))),
+      Lot("5", "1", Some("secret box5"), topBidder = Some("user5"), topBid = Some(BigDecimal(5000)))
+    )
+
+    //prepare GetLot(1, 1, 1000), GetLot(1, 2, 2000) ... GetLot(1, 5, 5000) x 10 = 50
+    val source = Source( (1 to 50).map(i=> GetLotPrice(auctionId = Some("1"), lotId = Some( (if(i % 5 == 0) 5 else i % 5).toString))) )
+    val flowToTest: Flow[GetLotPrice, Seq[LotPrice], NotUsed] = auctionService.streamLotPrices
+    val sink = Sink.fold[Seq[LotPrice], Seq[LotPrice]](Seq.empty[LotPrice]) {
+      case (accumulatedLotPrices, currentLotPrices)=>
+        (accumulatedLotPrices ++ currentLotPrices)
+    }
+    val streamResult = source.via(flowToTest).runWith(sink)
+
+    //expect LotPrice(1, 1, 1000), LotPrice(2, 1, 2000) ... LotPrice(5, 1, 5000) x 10 = 50
+    val expectedStreamResult = (1 to 50).map(i=> LotPrice( lotId = (if(i % 5 == 0) 5 else i % 5).toString, auctionId = "1",
+      price = Some(BigDecimal( (if(i % 5 == 0) 5000 else (i % 5) * 1000 )  ))  ) )
+
+    val results = for {
+      result1 <- dataPreparation
+      result2 <- streamResult
+    } yield (result1, result2)
+
+    import io.scalac.auction.domain.model.Ordering._
+    results map { results=>
+
+      val dataPrepared = results._1
+      dataPrepared should be(Right(expectedMockData))
+
+      val streamResult = results._2
+      streamResult.sorted should be (expectedStreamResult.sorted)
+    }
+
   }
 }
