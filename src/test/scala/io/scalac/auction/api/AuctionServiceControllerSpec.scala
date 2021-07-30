@@ -4,29 +4,33 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{MessageEntity, StatusCodes}
-import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
+import akka.stream.Materializer
+import akka.stream.scaladsl.Flow
 import com.github._3tty0n.jwt.JWT
 import io.scalac.auction.api.dto.{AddLot, UserBid}
 import io.scalac.auction.api.formats.JsonFormatter
-import io.scalac.auction.domain.AuctionService
+import io.scalac.auction.domain.{AuctionService, AuctionStreamService}
 import io.scalac.auction.domain.model.ServiceFailure._
-import io.scalac.auction.domain.model.{Auction, AuctionId, AuctionStates, Lot, LotId}
+import io.scalac.auction.domain.model.{Auction, AuctionId, AuctionStates, GetLotPrice, Lot, LotId, LotPrice}
 import io.scalac.auth.UserService
 import io.scalac.auth.UserService.UnknownUser
-import io.scalac.domain.api.mapping.Implicits._
 import io.scalac.util.{ConfigProvider, Configs}
-import io.scalac.util.json.Converters._
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import spray.json._
 
-import scala.concurrent.Future
+import scala.concurrent.{Future}
 
 class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFactory with ScalatestRouteTest with ScalaFutures with SprayJsonSupport with JsonFormatter {
   implicit val config: ConfigProvider = Configs
-  val mockAuctionService = mock[AuctionService]
+  implicit val mat = Materializer
+
+  trait AuctionServiceWithStream extends AuctionService with AuctionStreamService
+
+  val mockAuctionService = mock[AuctionServiceWithStream]
   val mockUserService = mock[UserService]
   val controller = new AuctionServiceController(mockAuctionService, mockUserService)
 
@@ -449,6 +453,20 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
       status should be (StatusCodes.Unauthorized)
       val expected = s"Invalid token."
       entityAs[String] should be (expected)
+    }
+  }
+
+  "AuctionServiceController websocket route" should "respond with current lot prices" in {
+    val wsClient = WSProbe()
+    val mockFlow =  Flow[GetLotPrice].map {
+      case GetLotPrice(Some(auctionId), Some(lotId)) =>
+        Seq(LotPrice(lotId, auctionId, Some(BigDecimal(9999))))
+    }
+    (mockAuctionService.streamLotPrices _).expects().returns(mockFlow)
+
+    WS("/websocket/lot-prices", wsClient.flow) ~> controller.webSocketRoute ~> check {
+      wsClient.sendMessage("""{"auctionId":"1","lotId":"1"}""")
+      wsClient.expectMessage("""[{"lotId":"1","auctionId":"1","price":9999}]""".parseJson.prettyPrint )
     }
   }
 

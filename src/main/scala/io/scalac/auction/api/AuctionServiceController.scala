@@ -4,20 +4,24 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.stream.Materializer
 import io.scalac.auction.api.auth.AuctionApiJWTClaimValidator
 import io.scalac.auction.api.dto.{AddLot, UserBid}
 import io.scalac.auction.api.formats.JsonFormatter
-import io.scalac.auction.domain.AuctionService
+import io.scalac.auction.domain.{AuctionService, AuctionStreamService}
 import io.scalac.auction.domain.model.ServiceFailure
 import io.scalac.auth.UserService
-import io.scalac.domain.api.mapping.Implicits._
-import io.scalac.util.ConfigProvider
+import io.scalac.auction.domain.api.mapping.Implicits._
+import io.scalac.util.{ConfigProvider}
 import io.scalac.util.http.PayloadConverter
 
 import scala.util.{Failure, Success}
 
-class AuctionServiceController(val auctionService: AuctionService, val userService: UserService)(implicit config: ConfigProvider) extends SprayJsonSupport with JsonFormatter
-  with PayloadConverter with AuctionApiJWTClaimValidator {
+class AuctionServiceController(val auctionService: AuctionService with AuctionStreamService,
+                               val userService: UserService)
+                              (implicit val config: ConfigProvider, val mat: Materializer)
+  extends SprayJsonSupport with JsonFormatter with PayloadConverter
+    with AuctionApiJWTClaimValidator with AuctionServiceWebSocketRoute {
 
   override def getSecret: Option[String] = config.getStringConfigVal("application.secret")
 
