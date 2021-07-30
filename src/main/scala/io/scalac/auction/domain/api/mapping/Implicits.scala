@@ -1,7 +1,7 @@
-package io.scalac.domain.api.mapping
+package io.scalac.auction.domain.api.mapping
 
-import io.scalac.auction.domain.model
 import io.scalac.auction.api.dto
+import io.scalac.auction.domain.model
 
 object Implicits {
 
@@ -12,5 +12,9 @@ object Implicits {
   implicit class RichLot(val lot: model.Lot) extends AnyVal {
     def toApi = dto.Lot(id = lot.id, auctionId = lot.auctionId,
       description = lot.description, topBidder = lot.topBidder, topBid = lot.topBid)
+  }
+
+  implicit class RichLotPrice(val lotPrice: model.LotPrice) extends AnyVal {
+    def toApi = dto.LotPrice(lotId = lotPrice.lotId, auctionId = lotPrice.auctionId, price = lotPrice.price)
   }
 }
