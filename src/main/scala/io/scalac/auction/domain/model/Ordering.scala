@@ -19,4 +19,20 @@ object Ordering {
     }
   }
 
+  implicit def bidResultOrdering[T <: BidResult] = new Ordering[T] {
+    override def compare(x: T, y: T): Int = {
+      val userIdDiff = x.bid.userId.compareTo(y.bid.userId)
+      lazy val auctionIdDiff = x.bid.auctionId.compareTo(y.bid.auctionId)
+      lazy val lotIdDiff = x.bid.lotId.compareTo(y.bid.lotId)
+      lazy val amountDiff = ((x.bid.amount * 1000) - (y.bid.amount * 1000)).toInt
+      if (userIdDiff == 0) {
+        if (auctionIdDiff == 0) {
+          if (lotIdDiff == 0) {
+            amountDiff
+          } else lotIdDiff
+        } else auctionIdDiff
+      } else userIdDiff
+    }
+  }
+
 }

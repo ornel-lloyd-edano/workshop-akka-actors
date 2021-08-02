@@ -3,7 +3,7 @@ package io.scalac.auction.domain
 import akka.NotUsed
 import akka.stream.Materializer
 import akka.stream.scaladsl.Flow
-import io.scalac.auction.domain.model.{GetLotPrice, Lot, LotPrice}
+import io.scalac.auction.domain.model.{BidFail, BidResult, BidSuccess, GetLotPrice, Lot, LotPrice, SendBid}
 import io.scalac.util.{ConfigProvider, Logging}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -15,10 +15,23 @@ trait AuctionStreamService extends Logging {
   implicit val ec: ExecutionContext
   implicit val mat: Materializer
   implicit val config: ConfigProvider
-  lazy val waitDuration: FiniteDuration = (config.getIntConfigVal("streaming.await.duration").getOrElse(2) seconds)
+  lazy val waitDuration: FiniteDuration = (config.getIntConfigVal("streaming.await.duration").getOrElse(3) seconds)
+
+  def streamBids: Flow[SendBid, BidResult, NotUsed] = {
+    Flow[SendBid].map {
+      case sendBid @ SendBid(userId, lotId, auctionId, amount, maxAmount)=>
+        val result = bid(auctionId, lotId, userId, amount, maxAmount).map {
+          case Right(lot)=>
+            BidSuccess(sendBid, lot)
+          case Left(fail)=>
+            logger.debug(s"AuctionStreamService received failure [${fail.message}]")
+            BidFail(sendBid, fail.message)
+        }
+        Await.result(result, waitDuration)
+    }
+  }
 
   def streamLotPrices: Flow[GetLotPrice, Seq[LotPrice], NotUsed] = {
-    val waitDuration: FiniteDuration = (config.getIntConfigVal("streaming.await.duration").getOrElse(2) seconds)
     Flow[GetLotPrice].map {
       case GetLotPrice(Some(auctionId), Some(lotId)) =>
         logger.debug(s"AuctionStreamService received message GetLot(auctionId = $auctionId, lotId = $lotId)")

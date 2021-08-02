@@ -1,6 +1,6 @@
 package io.scalac.auction.api.formats
 
-import io.scalac.auction.api.dto.{AddLot, Auction, GetLotPrice, Lot, LotPrice, SendBid, UserBid}
+import io.scalac.auction.api.dto.{AddLot, Auction, BidResult, GetLotPrice, Lot, LotPrice, SendBid, UserBid}
 import spray.json.DefaultJsonProtocol
 
 trait JsonFormatter extends DefaultJsonProtocol {
@@ -11,6 +11,8 @@ trait JsonFormatter extends DefaultJsonProtocol {
   implicit val addLotFormat = jsonFormat2(AddLot)
   implicit val getLotPriceFormat = jsonFormat2(GetLotPrice)
   implicit val lotPriceFormat = jsonFormat3(LotPrice)
+  implicit val sendBidFormat = jsonFormat5(SendBid)
+  implicit val bidResult = jsonFormat5(BidResult)
 }
 
 object JsonFormatter extends JsonFormatter

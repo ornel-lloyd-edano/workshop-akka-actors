@@ -17,4 +17,15 @@ object Implicits {
   implicit class RichLotPrice(val lotPrice: model.LotPrice) extends AnyVal {
     def toApi = dto.LotPrice(lotId = lotPrice.lotId, auctionId = lotPrice.auctionId, price = lotPrice.price)
   }
+
+  implicit class RichBidResult(val bidResult: model.BidResult) extends AnyVal {
+    def toApi = bidResult match {
+      case result: model.BidSuccess=>
+        dto.BidResult(userId = result.bid.userId, lotId = result.bid.lotId, auctionId = result.bid.auctionId,
+          amount = result.bid.amount, result = "Success" )
+      case result: model.BidFail=>
+        dto.BidResult(userId = result.bid.userId, lotId = result.bid.lotId, auctionId = result.bid.auctionId,
+          amount = result.bid.amount, result = "Fail" )
+    }
+  }
 }

@@ -8,11 +8,11 @@ import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Flow
 import com.github._3tty0n.jwt.JWT
-import io.scalac.auction.api.dto.{AddLot, UserBid}
+import io.scalac.auction.api.dto.{AddLot, BidResult, UserBid}
 import io.scalac.auction.api.formats.JsonFormatter
 import io.scalac.auction.domain.{AuctionService, AuctionStreamService}
 import io.scalac.auction.domain.model.ServiceFailure._
-import io.scalac.auction.domain.model.{Auction, AuctionId, AuctionStates, GetLotPrice, Lot, LotId, LotPrice}
+import io.scalac.auction.domain.model.{Auction, AuctionId, AuctionStates, BidFail, BidSuccess, GetLotPrice, Lot, LotId, LotPrice, SendBid}
 import io.scalac.auth.UserService
 import io.scalac.auth.UserService.UnknownUser
 import io.scalac.util.{ConfigProvider, Configs}
@@ -22,7 +22,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import spray.json._
 
-import scala.concurrent.{Future}
+import scala.concurrent.Future
 
 class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFactory with ScalatestRouteTest with ScalaFutures with SprayJsonSupport with JsonFormatter {
   implicit val config: ConfigProvider = Configs
@@ -470,4 +470,22 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
     }
   }
 
+  "AuctionServiceController websocket route" should "accept bids and respond with bid results" in {
+    val wsClient = WSProbe()
+    val mockFlow =  Flow[SendBid].map {
+      case bid @ SendBid("ornel", lotId, auctionId, amount, _) =>
+        BidSuccess(bid, Lot(lotId, auctionId, None, topBidder = Some("ornel"), topBid = Some(amount)))
+      case bid=>
+        BidFail(bid, reason = "bid is too low")
+    }
+    (mockAuctionService.streamBids _).expects().returns(mockFlow)
+
+    WS("/websocket/bid", wsClient.flow) ~> controller.webSocketRoute ~> check {
+      wsClient.sendMessage("""{"userId":"ornel","lotId":"10","auctionId":"1","amount":7777}""")
+      wsClient.expectMessage("""{"userId":"ornel","lotId":"10","auctionId":"1","amount":7777,"result":"Success"}""".parseJson.prettyPrint )
+
+      wsClient.sendMessage("""{"userId":"lloyd","lotId":"10","auctionId":"1","amount":6000}""")
+      wsClient.expectMessage("""{"userId":"lloyd","lotId":"10","auctionId":"1","amount":6000,"result":"Fail"}""".parseJson.prettyPrint )
+    }
+  }
 }
