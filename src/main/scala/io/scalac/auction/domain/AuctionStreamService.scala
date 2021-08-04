@@ -17,7 +17,8 @@ trait AuctionStreamService extends Logging {
   implicit val config: ConfigProvider
   lazy val waitDuration: FiniteDuration = (config.getIntConfigVal("streaming.await.duration").getOrElse(3) seconds)
 
-  def streamBids: Flow[SendBid, BidResult, NotUsed] = {
+
+  def bidsFlow: Flow[SendBid, BidResult, NotUsed] = {
     Flow[SendBid].map {
       case sendBid @ SendBid(userId, lotId, auctionId, amount, maxAmount)=>
         val result = bid(auctionId, lotId, userId, amount, maxAmount).map {
@@ -31,7 +32,7 @@ trait AuctionStreamService extends Logging {
     }
   }
 
-  def streamLotPrices: Flow[GetLotPrice, Seq[LotPrice], NotUsed] = {
+  def lotPricesFlow: Flow[GetLotPrice, Seq[LotPrice], NotUsed] = {
     Flow[GetLotPrice].map {
       case GetLotPrice(Some(auctionId), Some(lotId)) =>
         logger.debug(s"AuctionStreamService received message GetLot(auctionId = $auctionId, lotId = $lotId)")

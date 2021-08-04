@@ -462,7 +462,7 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
       case GetLotPrice(Some(auctionId), Some(lotId)) =>
         Seq(LotPrice(lotId, auctionId, Some(BigDecimal(9999))))
     }
-    (mockAuctionService.streamLotPrices _).expects().returns(mockFlow)
+    (mockAuctionService.lotPricesFlow _).expects().returns(mockFlow)
 
     WS("/websocket/lot-prices", wsClient.flow) ~> controller.webSocketRoute ~> check {
       wsClient.sendMessage("""{"auctionId":"1","lotId":"1"}""")
@@ -478,7 +478,7 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
       case bid=>
         BidFail(bid, reason = "bid is too low")
     }
-    (mockAuctionService.streamBids _).expects().returns(mockFlow)
+    (mockAuctionService.bidsFlow _).expects().returns(mockFlow)
 
     WS("/websocket/bid", wsClient.flow) ~> controller.webSocketRoute ~> check {
       wsClient.sendMessage("""{"userId":"ornel","lotId":"10","auctionId":"1","amount":7777}""")

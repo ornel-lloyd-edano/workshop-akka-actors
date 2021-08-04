@@ -235,7 +235,7 @@ class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Match
 
     //prepare GetLot(1, 1, 1000), GetLot(1, 2, 2000) ... GetLot(1, 5, 5000) x 10 = 50
     val source = Source( (1 to 50).map(i=> GetLotPrice(auctionId = Some("1"), lotId = Some( (if(i % 5 == 0) 5 else i % 5).toString))) )
-    val flowToTest: Flow[GetLotPrice, Seq[LotPrice], NotUsed] = auctionService.streamLotPrices
+    val flowToTest: Flow[GetLotPrice, Seq[LotPrice], NotUsed] = auctionService.lotPricesFlow
     val sink = Sink.fold[Seq[LotPrice], Seq[LotPrice]](Seq.empty[LotPrice]) {
       case (accumulatedLotPrices, currentLotPrices)=>
         (accumulatedLotPrices ++ currentLotPrices)
@@ -291,7 +291,7 @@ class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Match
     //prepare SendBids, bid 1 to 5 will fail but 6 to 10 will succeed
     val source = Source( (1 to 10).map(i=> SendBid(userId = "ornel", auctionId = "1",
       lotId = (if(i % 5 == 0) 5 else i % 5).toString, amount = BigDecimal(1000 * i), maxAmount = None)) )
-    val flowToTest: Flow[SendBid, BidResult, NotUsed] = auctionService.streamBids
+    val flowToTest: Flow[SendBid, BidResult, NotUsed] = auctionService.bidsFlow
     val sink = Sink.seq[BidResult]
 
     def streamResult = source.via(flowToTest).runWith(sink)

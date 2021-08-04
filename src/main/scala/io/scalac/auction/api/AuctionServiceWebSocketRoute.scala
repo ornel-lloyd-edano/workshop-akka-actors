@@ -33,7 +33,7 @@ trait AuctionServiceWebSocketRoute extends SprayJsonSupport with JsonFormatter w
         None
     }.collect {
       case Some(getLotPrice)=> getLotPrice
-    }.via(auctionService.streamLotPrices.map(lotPrices=> TextMessage(lotPrices.map(_.toApi).toJson.prettyPrint)))
+    }.via(auctionService.lotPricesFlow.map(lotPrices=> TextMessage(lotPrices.map(_.toApi).toJson.prettyPrint)))
 
   def bidFlow: Flow[Message, Message, Any] =
     Flow[Message].map {
@@ -49,7 +49,7 @@ trait AuctionServiceWebSocketRoute extends SprayJsonSupport with JsonFormatter w
         None
     }.collect {
       case Some(bid)=> bid
-    }.via(auctionService.streamBids.map(lot=> TextMessage( lot.toApi.toJson.prettyPrint )))
+    }.via(auctionService.bidsFlow.map(lot=> TextMessage( lot.toApi.toJson.prettyPrint )))
 
   def webSocketRoute =
     path("websocket" / "lot-prices") {
