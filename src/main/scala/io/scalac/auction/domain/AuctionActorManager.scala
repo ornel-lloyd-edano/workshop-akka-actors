@@ -22,7 +22,8 @@ object AuctionActorManager {
   final case class GetAllLotsByAuction(auctionId: String, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class Bid(userId: String, auctionId: String, lotId: String, amount: BigDecimal, maxBidAmount: BigDecimal, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class WrappedAuctionActorResponse(response: AuctionActor.AuctionResponse) extends AuctionMgmtCommand
-
+  case object ReachedEnd extends AuctionMgmtCommand
+  final case class FailureOccured(exception: Exception) extends AuctionMgmtCommand
 
   final case class Created(auctionId: String) extends AuctionMgmtResponse
   final case class AuctionDetail(id: String, status: AuctionStatus)
@@ -35,8 +36,8 @@ object AuctionActorManager {
   final case class LotDetails(auctionId: String, lotId: String, description: Option[String],
                               currentTopBidder: Option[String], currentBidAmount: Option[BigDecimal]) extends AuctionMgmtResponse
   final case class AggregatedLotDetails(lotDetails: Seq[LotDetails]) extends  AuctionMgmtResponse
-  final case class BidAccepted(userId: String, lotId: String) extends AuctionMgmtResponse
-  final case class BidRejected(userId: String, lotId: String) extends AuctionMgmtResponse
+  final case class BidAccepted(userId: String, lotId: String, auctionId: String, price: BigDecimal) extends AuctionMgmtResponse
+  final case class BidRejected(userId: String, lotId: String,  auctionId: String, price: BigDecimal) extends AuctionMgmtResponse
   final case class AuctionNotFound(auctionId: String) extends AuctionMgmtResponse
   final case class LotNotFound(auctionId: String, lotId: String) extends AuctionMgmtResponse
   case object CommandRejected extends AuctionMgmtResponse
@@ -55,7 +56,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
   private var idCounter: Int = 0
   val auctionActorMsgAdapter: ActorRef[AuctionActor.AuctionResponse] = context.messageAdapter(WrappedAuctionActorResponse(_))
 
-   def running(replyTo: Option[ActorRef[AuctionMgmtResponse]]): Behavior[AuctionActorManager.AuctionMgmtCommand] =  Behaviors.receiveMessagePartial {
+  def running(replyTo: Option[ActorRef[AuctionMgmtResponse]]): Behavior[AuctionActorManager.AuctionMgmtCommand] =  Behaviors.receiveMessagePartial {
     case Create(replyTo)=>
       idCounter += 1
       val auctionId = idCounter.toString
@@ -124,6 +125,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
       running(Some(replyTo))
 
     case GetLot(auctionId, lotId, replyTo)=>
+      context.log.debug(s"Received GetLot(auctionId = $auctionId, lotId= $lotId)")
       auctionActors.get(auctionId) match {
         case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.GetLot(lotId, auctionActorMsgAdapter)
@@ -162,6 +164,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
         case AuctionActor.LotsRemoved(auctionId, lotIds)=>
           replyTo.foreach(_ ! AllLotsRemoved(auctionId, lotIds))
         case AuctionActor.LotDetails(auctionId, lotId, description, currentTopBidder, currentBidAmount)=>
+          context.log.debug(s"Replying LotDetails(auctionId = $auctionId, lotId= $lotId, price=${currentBidAmount})")
           replyTo.foreach(_ ! LotDetails(auctionId, lotId, description,
             currentTopBidder, currentBidAmount))
         case AuctionActor.AggregatedLotDetails(lotDetails)=>
@@ -179,10 +182,10 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
               auctionActors += (auctionId -> (actorRef, AuctionStates.Stopped))
           }
           replyTo.foreach(_ ! Stopped(auctionId))
-        case AuctionActor.BidAccepted(_, userId, lotId)=>
-          replyTo.foreach(_ ! BidAccepted(userId, lotId))
-        case AuctionActor.BidRejected(_, userId, lotId)=>
-          replyTo.foreach(_ ! BidRejected(userId, lotId))
+        case AuctionActor.BidAccepted(auctionId, userId, lotId, newPrice)=>
+          replyTo.foreach(_ ! BidAccepted(userId, lotId, auctionId, newPrice))
+        case AuctionActor.BidRejected(auctionId, userId, lotId, oldPrice)=>
+          replyTo.foreach(_ ! BidRejected(userId, lotId, auctionId, oldPrice))
         case AuctionActor.LotNotFound(auctionId, lotId)=>
           replyTo.foreach(_ ! LotNotFound(auctionId, lotId))
         case AuctionActor.AuctionCommandRejected(_)=>

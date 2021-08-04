@@ -42,8 +42,8 @@ object AuctionActor {
   final case class LotDetails(auctionId: String, lotId: String, description: Option[String],
     currentTopBidder: Option[String], currentBidAmount: Option[BigDecimal])  extends  AuctionResponse
   final case class AggregatedLotDetails(lotDetails: Seq[LotDetails]) extends  AuctionResponse
-  final case class BidAccepted(auctionId: String, userId: String, lotId: String) extends AuctionResponse
-  final case class BidRejected(auctionId: String, userId: String, lotId: String) extends AuctionResponse
+  final case class BidAccepted(auctionId: String, userId: String, lotId: String, price: BigDecimal) extends AuctionResponse
+  final case class BidRejected(auctionId: String, userId: String, lotId: String, price: BigDecimal) extends AuctionResponse
   final case class LotNotFound(auctionId: String, lotId: String) extends AuctionResponse
 
   def apply(id: String): Behavior[AuctionCommand] =
@@ -131,10 +131,10 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
         response match {
           case LotActor.LotDetails(lotId, maybeDescription, maybeTopBidder, maybeCurrentBidAmount)=>
             replyTo ! LotDetails(id, lotId, maybeDescription, maybeTopBidder, maybeCurrentBidAmount)
-          case LotActor.BidAccepted(userId, lotId)=>
-            replyTo ! BidAccepted(id, userId, lotId)
-          case LotActor.BidRejected(userId, lotId)=>
-            replyTo ! BidRejected(id, userId, lotId)
+          case LotActor.BidAccepted(userId, lotId, newPrice)=>
+            replyTo ! BidAccepted(id, userId, lotId, newPrice)
+          case LotActor.BidRejected(userId, lotId, oldPrice)=>
+            replyTo ! BidRejected(id, userId, lotId, oldPrice)
         }
         Behaviors.same
 

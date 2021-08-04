@@ -169,10 +169,10 @@ class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.Auction
     auctionManager.ask[AuctionActorManager.AuctionMgmtResponse](ref=>
       AuctionActorManager.Bid(userId, auctionId, lotId, amount, maxAmount.getOrElse(amount), ref))
       .map {
-      case AuctionActorManager.BidAccepted(_, _)=>
+      case AuctionActorManager.BidAccepted(_, _, _, _)=>
         Right(userId)
 
-      case AuctionActorManager.BidRejected(userId, lotId)=>
+      case AuctionActorManager.BidRejected(userId, lotId, _, _)=>
         Left(ServiceFailure.BidRejected(s"User [$userId] failed to top the current top bidder for lot [$lotId] in auction [$auctionId]."))
       case AuctionActorManager.AuctionNotFound(auctionId)=>
         Left(ServiceFailure.AuctionNotFound(s"Bid did not proceed because auction [$auctionId] was not found."))
