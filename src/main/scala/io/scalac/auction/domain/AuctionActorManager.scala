@@ -1,9 +1,9 @@
 package io.scalac.auction.domain
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.scaladsl.{Sink, Source}
-import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy}
+import akka.stream.{Materializer, OverflowStrategy}
 import akka.stream.typed.scaladsl.ActorSource
 import io.scalac.auction.domain.AuctionActor.AuctionCommand
 import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
@@ -77,7 +77,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
         case StreamActor.Fail(ex) => ex
       }, bufferSize = 1000, overflowStrategy = OverflowStrategy.dropHead)
 
-  private val streamActorRef = source
+  val streamActorRef: ActorRef[StreamActor.Protocol] = source
     .collect {
       case StreamActor.Message(msg) => msg
     }.to(Sink.ignore).run()(Materializer(context.system))
