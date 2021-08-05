@@ -10,8 +10,8 @@ import io.scalac.util.{ConfigProvider, ExecutionContextProvider, Logging}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.AuctionMgmtCommand])
-                           (implicit ecProvider: ExecutionContextProvider, val config: ConfigProvider, scheduler: Scheduler, val mat: Materializer)
+class DefaultAuctionService(val auctionManager: ActorRef[AuctionActorManager.AuctionMgmtCommand])
+                           (implicit ecProvider: ExecutionContextProvider, val config: ConfigProvider, val scheduler: Scheduler, val mat: Materializer)
   extends AuctionService with AuctionStreamService with Logging {
 
   implicit val ec = ecProvider.cpuBoundExCtx

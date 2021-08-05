@@ -1,8 +1,11 @@
 package io.scalac.auction.domain
 
 import akka.NotUsed
+import akka.actor.typed.{ActorRef, Scheduler}
+import akka.actor.typed.scaladsl.AskPattern._
 import akka.stream.Materializer
-import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.util.Timeout
 import io.scalac.auction.domain.model.{BidFail, BidResult, BidSuccess, GetLotPrice, Lot, LotPrice, SendBid}
 import io.scalac.util.{ConfigProvider, Logging}
 
@@ -15,8 +18,30 @@ trait AuctionStreamService extends Logging {
   implicit val ec: ExecutionContext
   implicit val mat: Materializer
   implicit val config: ConfigProvider
+  implicit val scheduler: Scheduler
+  implicit val timeout: Timeout
+
   lazy val waitDuration: FiniteDuration = (config.getIntConfigVal("streaming.await.duration").getOrElse(3) seconds)
 
+  val auctionManager: ActorRef[AuctionActorManager.AuctionMgmtCommand]
+
+  def getBidsSink = Sink.foreach[SendBid] {
+    case SendBid(auctionId, lotId, userId, amount, maxAmount)=>
+      bid(auctionId, lotId, userId, amount, maxAmount)
+  }
+
+  def getLotPricesSource: Source[LotPrice, Any] = {
+    val result = auctionManager.ask[AuctionActorManager.AuctionMgmtResponse](ref=>
+      AuctionActorManager.GetStreamSource(ref))
+      .map {
+        case AuctionActorManager.StreamSource(source) =>
+          source.collect {
+            case AuctionActorManager.StreamActor.Message(AuctionActorManager.BidAccepted(_, lotId, auctionId, newPrice))=>
+              LotPrice(lotId, auctionId, Some(newPrice))
+          }
+      }
+    Await.result(result, waitDuration)
+  }
 
   def bidsFlow: Flow[SendBid, BidResult, NotUsed] = {
     Flow[SendBid].map {

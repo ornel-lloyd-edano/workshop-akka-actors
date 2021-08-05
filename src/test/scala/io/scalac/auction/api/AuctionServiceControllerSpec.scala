@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{MessageEntity, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.Materializer
-import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import com.github._3tty0n.jwt.JWT
 import io.scalac.auction.api.dto.{AddLot, BidResult, UserBid}
 import io.scalac.auction.api.formats.JsonFormatter
@@ -22,7 +22,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import spray.json._
 
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 
 class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFactory with ScalatestRouteTest with ScalaFutures with SprayJsonSupport with JsonFormatter {
   implicit val config: ConfigProvider = Configs
@@ -456,7 +456,42 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
     }
   }
 
-  "AuctionServiceController websocket route" should "respond with current lot prices" in {
+  "AuctionServiceController websocket route" should "push updated lot prices while receiving bids on the same channel" in {
+    val wsClient = WSProbe()
+    val expectedSendBid = SendBid(userId = "ornel", lotId = "10", auctionId = "1", amount = BigDecimal(100), None)
+
+    val mockSink =  Sink.foreach[SendBid] {
+      case SendBid(userId, lotId, auctionId, amount, maxAmount)=>
+        Future.successful(())
+    }
+    (mockAuctionService.getBidsSink _).expects().returns(mockSink)
+
+    val mockSource = Source(scala.collection.immutable.Seq(
+      LotPrice("1", "1", Some(BigDecimal(555))),
+      LotPrice("1", "1", Some(BigDecimal(777))),
+      LotPrice("2", "1", Some(BigDecimal(999))),
+      LotPrice("2", "1", Some(BigDecimal(10000)))
+    ))
+    (mockAuctionService.getLotPricesSource _).expects().returns(mockSource)
+
+    WS("/websocket", wsClient.flow) ~> controller.webSocketRoute ~> check {
+      wsClient.sendMessage(
+        s"""{"userId":"${expectedSendBid.userId}",
+           |"lotId":"${expectedSendBid.lotId}",
+           |"auctionId":"${expectedSendBid.auctionId}",
+           |"amount":${expectedSendBid.amount}}""".stripMargin.parseJson.toString())
+
+      wsClient.expectMessage("""{"lotId":"1","auctionId":"1","price":555}""".parseJson.prettyPrint)
+      wsClient.expectMessage("""{"lotId":"1","auctionId":"1","price":777}""".parseJson.prettyPrint)
+      wsClient.expectMessage("""{"lotId":"2","auctionId":"1","price":999}""".parseJson.prettyPrint)
+      wsClient.expectMessage("""{"lotId":"2","auctionId":"1","price":10000}""".parseJson.prettyPrint)
+
+      wsClient.sendCompletion()
+      wsClient.expectCompletion()
+    }
+  }
+
+  "AuctionServiceController websocket route" should "accept lot price query and respond with current lot prices" in {
     val wsClient = WSProbe()
     val mockFlow =  Flow[GetLotPrice].map {
       case GetLotPrice(Some(auctionId), Some(lotId)) =>
@@ -464,7 +499,7 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
     }
     (mockAuctionService.lotPricesFlow _).expects().returns(mockFlow)
 
-    WS("/websocket/lot-prices", wsClient.flow) ~> controller.webSocketRoute ~> check {
+    WS("/websocket/get-lot-prices", wsClient.flow) ~> controller.webSocketRoute ~> check {
       wsClient.sendMessage("""{"auctionId":"1","lotId":"1"}""")
       wsClient.expectMessage("""[{"lotId":"1","auctionId":"1","price":9999}]""".parseJson.prettyPrint )
     }
@@ -480,7 +515,7 @@ class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFa
     }
     (mockAuctionService.bidsFlow _).expects().returns(mockFlow)
 
-    WS("/websocket/bid", wsClient.flow) ~> controller.webSocketRoute ~> check {
+    WS("/websocket/send-bids", wsClient.flow) ~> controller.webSocketRoute ~> check {
       wsClient.sendMessage("""{"userId":"ornel","lotId":"10","auctionId":"1","amount":7777}""")
       wsClient.expectMessage("""{"userId":"ornel","lotId":"10","auctionId":"1","amount":7777,"result":"Success"}""".parseJson.prettyPrint )
 

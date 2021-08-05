@@ -1,7 +1,10 @@
 package io.scalac.auction.domain
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
+import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy}
+import akka.stream.typed.scaladsl.ActorSource
 import io.scalac.auction.domain.AuctionActor.AuctionCommand
 import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
 
@@ -42,6 +45,15 @@ object AuctionActorManager {
   final case class LotNotFound(auctionId: String, lotId: String) extends AuctionMgmtResponse
   case object CommandRejected extends AuctionMgmtResponse
 
+  final case class GetStreamSource(replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
+  final case class StreamSource(source: Source[StreamActor.Protocol, ActorRef[StreamActor.Protocol]]) extends AuctionMgmtResponse
+  object StreamActor {
+    trait Protocol
+    case class Message(msg: AuctionMgmtResponse) extends Protocol
+    case object Complete extends Protocol
+    case class Fail(ex: Exception) extends Protocol
+  }
+
   def apply(): Behavior[AuctionMgmtCommand] = Behaviors.withStash(100) { buffer=>
     Behaviors.setup(context => new AuctionActorManager(buffer, context).running(None))
   }
@@ -56,7 +68,25 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
   private var idCounter: Int = 0
   val auctionActorMsgAdapter: ActorRef[AuctionActor.AuctionResponse] = context.messageAdapter(WrappedAuctionActorResponse(_))
 
+  val source: Source[StreamActor.Protocol, ActorRef[StreamActor.Protocol]] =
+    ActorSource.actorRef[StreamActor.Protocol](
+      completionMatcher = {
+        case StreamActor.Complete =>
+      },
+      failureMatcher = {
+        case StreamActor.Fail(ex) => ex
+      }, bufferSize = 1000, overflowStrategy = OverflowStrategy.dropHead)
+
+  private val streamActorRef = source
+    .collect {
+      case StreamActor.Message(msg) => msg
+    }.to(Sink.ignore).run()(Materializer(context.system))
+
   def running(replyTo: Option[ActorRef[AuctionMgmtResponse]]): Behavior[AuctionActorManager.AuctionMgmtCommand] =  Behaviors.receiveMessagePartial {
+    case GetStreamSource(replyTo)=>
+      replyTo ! StreamSource(source)
+      Behaviors.same
+
     case Create(replyTo)=>
       idCounter += 1
       val auctionId = idCounter.toString
@@ -183,7 +213,9 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
           }
           replyTo.foreach(_ ! Stopped(auctionId))
         case AuctionActor.BidAccepted(auctionId, userId, lotId, newPrice)=>
-          replyTo.foreach(_ ! BidAccepted(userId, lotId, auctionId, newPrice))
+          val bidAccepted = BidAccepted(userId, lotId, auctionId, newPrice)
+          streamActorRef ! StreamActor.Message(bidAccepted)
+          replyTo.foreach(_ ! bidAccepted)
         case AuctionActor.BidRejected(auctionId, userId, lotId, oldPrice)=>
           replyTo.foreach(_ ! BidRejected(userId, lotId, auctionId, oldPrice))
         case AuctionActor.LotNotFound(auctionId, lotId)=>
