@@ -12,8 +12,8 @@ import io.scalac.auction.domain.{AuctionService, AuctionStreamService}
 import io.scalac.auction.domain.model.ServiceFailure
 import io.scalac.auth.UserService
 import io.scalac.auction.domain.api.mapping.Implicits._
-import io.scalac.util.{ConfigProvider}
-import io.scalac.util.http.PayloadConverter
+import io.scalac.util.ConfigProvider
+import io.scalac.util.http.{PayloadConverter, RouteLogging}
 
 import scala.util.{Failure, Success}
 
@@ -21,7 +21,7 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
                                val userService: UserService)
                               (implicit val config: ConfigProvider, val mat: Materializer)
   extends SprayJsonSupport with JsonFormatter with PayloadConverter
-    with AuctionApiJWTClaimValidator with AuctionServiceWebSocketRoute {
+    with AuctionApiJWTClaimValidator with AuctionServiceWebSocketRoute with RouteLogging {
 
   override def getSecret: Option[String] = config.getStringConfigVal("application.secret")
 
@@ -31,13 +31,15 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
 
   def createAuction: Route = path("auctions") {
     post {
-      onComplete(auctionService.createAuction) {
-        case Success(Right(auctionId))=>
-          complete(StatusCodes.Created, s"Auction [$auctionId] created.")
-        case Success(Left(failure))=>
-          complete(StatusCodes.InternalServerError, failure.message)
-        case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+      logInfoRequestResponse {
+        onComplete(auctionService.createAuction) {
+          case Success(Right(auctionId))=>
+            complete(StatusCodes.Created, s"Auction [$auctionId] created.")
+          case Success(Left(failure))=>
+            complete(StatusCodes.InternalServerError, failure.message)
+          case Failure(exception)=>
+            complete(StatusCodes.InternalServerError, exception.getMessage)
+        }
       }
     }
   }
@@ -45,17 +47,19 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
   //Note: this route is more like RPC-style than Restful style
   def startAuction: Route = path("auctions" / Segment / "start") { auctionId=>
       put {
-        onComplete(auctionService.startAuction(auctionId)) {
-          case Success(Right(_))=>
-            complete(StatusCodes.OK, s"Auction [$auctionId] started.")
-          case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-            complete(StatusCodes.NotFound, message)
-          case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
-            complete(StatusCodes.BadRequest, message)
-          case Success(Left(otherFailure))=>
-            complete(StatusCodes.InternalServerError, otherFailure.message)
-          case Failure(exception)=>
-            complete(StatusCodes.InternalServerError, exception.getMessage)
+        logInfoRequestResponse {
+          onComplete(auctionService.startAuction(auctionId)) {
+            case Success(Right(_))=>
+              complete(StatusCodes.OK, s"Auction [$auctionId] started.")
+            case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+              complete(StatusCodes.NotFound, message)
+            case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
+              complete(StatusCodes.BadRequest, message)
+            case Success(Left(otherFailure))=>
+              complete(StatusCodes.InternalServerError, otherFailure.message)
+            case Failure(exception)=>
+              complete(StatusCodes.InternalServerError, exception.getMessage)
+          }
         }
       }
   }
@@ -63,28 +67,32 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
   //Note: this route is more like RPC-style than Restful style
   def endAuction: Route = path("auctions" / Segment / "end") { auctionId=>
     put {
-      onComplete(auctionService.endAuction(auctionId)) {
-        case Success(Right(_))=>
-          complete(StatusCodes.OK, s"Auction [$auctionId] ended.")
-        case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-          complete(StatusCodes.NotFound, message)
-        case Success(Left(otherFailure))=>
-          complete(StatusCodes.InternalServerError, otherFailure.message)
-        case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+      logInfoRequestResponse {
+        onComplete(auctionService.endAuction(auctionId)) {
+          case Success(Right(_))=>
+            complete(StatusCodes.OK, s"Auction [$auctionId] ended.")
+          case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+            complete(StatusCodes.NotFound, message)
+          case Success(Left(otherFailure))=>
+            complete(StatusCodes.InternalServerError, otherFailure.message)
+          case Failure(exception)=>
+            complete(StatusCodes.InternalServerError, exception.getMessage)
+        }
       }
     }
   }
 
   def getAllAuctions: Route = path("auctions") {
     get {
-      onComplete(auctionService.getAuctions) {
-        case Success(Right(auctions))=>
-          complete(StatusCodes.OK, auctions.map(_.toApi).toJsonHttpEntity)
-        case Success(Left(failure))=>
-          complete(StatusCodes.InternalServerError, failure.message)
-        case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+      logInfoRequestResponse {
+        onComplete(auctionService.getAuctions) {
+          case Success(Right(auctions))=>
+            complete(StatusCodes.OK, auctions.map(_.toApi).toJsonHttpEntity)
+          case Success(Left(failure))=>
+            complete(StatusCodes.InternalServerError, failure.message)
+          case Failure(exception)=>
+            complete(StatusCodes.InternalServerError, exception.getMessage)
+        }
       }
     }
   }
@@ -92,17 +100,19 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
   def createLot: Route = path("auctions" / Segment / "lots") { auctionId=>
     post {
       entity(as[AddLot]) { addLot=>
-        onComplete(auctionService.addLot(auctionId, addLot.description, addLot.minBidAmount)) {
-          case Success(Right(lot))=>
-            complete(StatusCodes.Created, s"Lot [${lot}] in auction [$auctionId] is created.")
-          case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-            complete(StatusCodes.NotFound, message)
-          case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
-            complete(StatusCodes.BadRequest, message)
-          case Success(Left(otherFailure))=>
-            complete(StatusCodes.InternalServerError, otherFailure.message)
-          case Failure(exception)=>
-            complete(StatusCodes.InternalServerError, exception.getMessage)
+        logInfoRequestResponse {
+          onComplete(auctionService.addLot(auctionId, addLot.description, addLot.minBidAmount)) {
+            case Success(Right(lot))=>
+              complete(StatusCodes.Created, s"Lot [${lot}] in auction [$auctionId] is created.")
+            case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+              complete(StatusCodes.NotFound, message)
+            case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
+              complete(StatusCodes.BadRequest, message)
+            case Success(Left(otherFailure))=>
+              complete(StatusCodes.InternalServerError, otherFailure.message)
+            case Failure(exception)=>
+              complete(StatusCodes.InternalServerError, exception.getMessage)
+          }
         }
       }
     }
@@ -111,18 +121,41 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
   def bid: Route = path("auctions" / Segment / "lots" / Segment) { (auctionId, lotId)=>
     post {
       entity(as[UserBid]) { userBid=>
-        val serviceCall = auctionService.bid(auctionId, lotId, userId = userBid.userId,
-          amount = userBid.amount, maxAmount = userBid.maxBid)
-        onComplete(serviceCall) {
+        logInfoRequestResponse {
+          val serviceCall = auctionService.bid(auctionId, lotId, userId = userBid.userId,
+            amount = userBid.amount, maxAmount = userBid.maxBid)
+          onComplete(serviceCall) {
+            case Success(Right(lot))=>
+              complete(StatusCodes.OK, s"Bid to lot [${lot.id}] in auction [$auctionId] is successful.")
+            case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+              complete(StatusCodes.NotFound, message)
+            case Success(Left(ServiceFailure.LotNotFound(message)))=>
+              complete(StatusCodes.NotFound, message)
+            case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
+              complete(StatusCodes.BadRequest, message)
+            case Success(Left(ServiceFailure.BidRejected(message)))=>
+              complete(StatusCodes.BadRequest, message)
+            case Success(Left(otherFailure))=>
+              complete(StatusCodes.InternalServerError, otherFailure.message)
+            case Failure(exception)=>
+              complete(StatusCodes.InternalServerError, exception.getMessage)
+          }
+        }
+      }
+    }
+  }
+
+  def getLotById: Route = path("auctions" / Segment / "lots" / Segment) { (auctionId, lotId) =>
+    get {
+      logInfoRequestResponse {
+        onComplete(auctionService.getLotById(auctionId, lotId)) {
           case Success(Right(lot))=>
-            complete(StatusCodes.OK, s"Bid to lot [${lot.id}] in auction [$auctionId] is successful.")
+            complete(StatusCodes.OK, lot.toApi.toJsonHttpEntity)
           case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
             complete(StatusCodes.NotFound, message)
           case Success(Left(ServiceFailure.LotNotFound(message)))=>
             complete(StatusCodes.NotFound, message)
           case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
-            complete(StatusCodes.BadRequest, message)
-          case Success(Left(ServiceFailure.BidRejected(message)))=>
             complete(StatusCodes.BadRequest, message)
           case Success(Left(otherFailure))=>
             complete(StatusCodes.InternalServerError, otherFailure.message)
@@ -133,38 +166,21 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
     }
   }
 
-  def getLotById: Route = path("auctions" / Segment / "lots" / Segment) { (auctionId, lotId) =>
-    get {
-      onComplete(auctionService.getLotById(auctionId, lotId)) {
-        case Success(Right(lot))=>
-          complete(StatusCodes.OK, lot.toApi.toJsonHttpEntity)
-        case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-          complete(StatusCodes.NotFound, message)
-        case Success(Left(ServiceFailure.LotNotFound(message)))=>
-          complete(StatusCodes.NotFound, message)
-        case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
-          complete(StatusCodes.BadRequest, message)
-        case Success(Left(otherFailure))=>
-          complete(StatusCodes.InternalServerError, otherFailure.message)
-        case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
-      }
-    }
-  }
-
   def getLotsByAuction: Route = path("auctions" / Segment / "lots") { auctionId =>
     get {
-      onComplete(auctionService.getLotsByAuction(auctionId)) {
-        case Success(Right(lots))=>
-          complete(StatusCodes.OK,  lots.map(_.toApi).toJsonHttpEntity )
-        case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
-          complete(StatusCodes.NotFound, message)
-        case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
-          complete(StatusCodes.BadRequest, message)
-        case Success(Left(otherFailure))=>
-          complete(StatusCodes.InternalServerError, otherFailure.message)
-        case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+      logInfoRequestResponse {
+        onComplete(auctionService.getLotsByAuction(auctionId)) {
+          case Success(Right(lots))=>
+            complete(StatusCodes.OK,  lots.map(_.toApi).toJsonHttpEntity )
+          case Success(Left(ServiceFailure.AuctionNotFound(message)))=>
+            complete(StatusCodes.NotFound, message)
+          case Success(Left(ServiceFailure.AuctionNotReady(message)))=>
+            complete(StatusCodes.BadRequest, message)
+          case Success(Left(otherFailure))=>
+            complete(StatusCodes.InternalServerError, otherFailure.message)
+          case Failure(exception)=>
+            complete(StatusCodes.InternalServerError, exception.getMessage)
+        }
       }
     }
   }
