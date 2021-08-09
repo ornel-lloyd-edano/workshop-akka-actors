@@ -25,8 +25,6 @@ object AuctionActorManager {
   final case class GetAllLotsByAuction(auctionId: String, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class Bid(userId: String, auctionId: String, lotId: String, amount: BigDecimal, maxBidAmount: BigDecimal, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class WrappedAuctionActorResponse(response: AuctionActor.AuctionResponse) extends AuctionMgmtCommand
-  case object ReachedEnd extends AuctionMgmtCommand
-  final case class FailureOccured(exception: Exception) extends AuctionMgmtCommand
 
   final case class Created(auctionId: String) extends AuctionMgmtResponse
   final case class AuctionDetail(id: String, status: AuctionStatus)
