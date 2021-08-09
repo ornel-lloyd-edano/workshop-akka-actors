@@ -1,6 +1,6 @@
 package io.scalac.auction.domain
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
@@ -55,13 +55,12 @@ object AuctionActorManager {
   }
 
   def apply(): Behavior[AuctionMgmtCommand] = Behaviors.withStash(100) { buffer=>
-    Behaviors.setup(context => new AuctionActorManager(buffer, context).running(None))
+    Behaviors.setup(context => new AuctionActorManager(context).running(None))
   }
 
 }
 
-class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.AuctionMgmtCommand],
-                                  context: ActorContext[AuctionActorManager.AuctionMgmtCommand]) {
+class AuctionActorManager private(context: ActorContext[AuctionActorManager.AuctionMgmtCommand]) {
   import AuctionActorManager._
 
   private var auctionActors = Map[String, (ActorRef[AuctionCommand], AuctionStatus)]()
