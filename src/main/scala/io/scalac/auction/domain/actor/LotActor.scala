@@ -3,6 +3,7 @@ package io.scalac.auction.domain.actor
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 
+@Deprecated
 object LotActor {
 
   private case class BestBid(userId: String, amount: BigDecimal, maxBidAmount: BigDecimal)
@@ -24,6 +25,7 @@ object LotActor {
     Behaviors.setup(context => new LotActor(id, description, minAmount, maxAmount, context))
 }
 
+@Deprecated
 class LotActor(id: String, description: Option[String],
                minAmount: Option[BigDecimal], maxAmount: Option[BigDecimal],
                context: ActorContext[LotActor.LotCommand]) extends AbstractBehavior[LotActor.LotCommand](context) {

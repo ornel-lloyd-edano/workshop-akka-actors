@@ -4,6 +4,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
 import io.scalac.auction.domain.actor.AuctionActor._
 
+@Deprecated
 object AuctionActor {
 
   sealed trait AuctionCommand
@@ -53,6 +54,7 @@ object AuctionActor {
 
 }
 
+@Deprecated
 class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: ActorContext[AuctionCommand]) {
 
   private var lotActors = Map[String, ActorRef[LotActor.LotCommand]]()

@@ -7,8 +7,7 @@ import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionC
 import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.typed.scaladsl.ActorSource
 import akka.stream.{Materializer, OverflowStrategy}
-import io.scalac.auction.domain.actor.AuctionActor
-import io.scalac.auction.domain.actor.AuctionActor.AuctionCommand
+import io.scalac.auction.domain.actor.persistent.AuctionActor.AuctionCommand
 import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
 import io.scalac.serde.CborSerializable
 
@@ -180,11 +179,13 @@ object AuctionActorManager {
 
     case WrappedAuctionActorResponse(response)=>
       val result = response match {
-        case AuctionActor.LotCreated(auctionId, lotId)=>
+        case AuctionActor.LotCreated(auctionId, lotId, _, _)=>
           context.log.debug(s"AuctionActorMgr received LotCreated($auctionId, $lotId)")
           Right(LotAdded(auctionId, lotId))
+
         case AuctionActor.LotRemoved(auctionId, lotId)=>
           Right(LotRemoved(auctionId, lotId))
+
         case AuctionActor.LotsRemoved(auctionId, lotIds)=>
           Right(AllLotsRemoved(auctionId, lotIds))
 

@@ -8,6 +8,7 @@ import akka.stream.{Materializer, OverflowStrategy}
 import io.scalac.auction.domain.actor.AuctionActor.AuctionCommand
 import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
 
+@Deprecated
 object AuctionActorManager {
 
   sealed trait AuctionMgmtCommand
@@ -58,6 +59,7 @@ object AuctionActorManager {
 
 }
 
+@Deprecated
 class AuctionActorManager private(context: ActorContext[AuctionActorManager.AuctionMgmtCommand]) {
   import AuctionActorManager._
 
