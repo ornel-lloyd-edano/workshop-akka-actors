@@ -1,8 +1,8 @@
-package io.scalac.auction.domain
+package io.scalac.auction.domain.actor
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
-import io.scalac.auction.domain.AuctionActor.AuctionCommand
+import io.scalac.auction.domain.actor.AuctionActor._
 
 object AuctionActor {
 
@@ -54,7 +54,6 @@ object AuctionActor {
 }
 
 class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: ActorContext[AuctionCommand]) {
-  import AuctionActor._
 
   private var lotActors = Map[String, ActorRef[LotActor.LotCommand]]()
 
@@ -64,6 +63,7 @@ class AuctionActor(id: String, buffer: StashBuffer[AuctionCommand], context: Act
   private def closed: Behavior[AuctionCommand] =
     Behaviors.receiveMessagePartial {
       case AddLot(maybeDescription, maybeMinBidAmount, replyTo)=>
+        context.log.info(s"AddLot(maybeDescription, maybeMinBidAmount, replyTo)")
         idCounter += 1
         val lotId = idCounter.toString
         val lotActor = context.spawn(LotActor(lotId, maybeDescription, maybeMinBidAmount, None), s"LotActor-$lotId")

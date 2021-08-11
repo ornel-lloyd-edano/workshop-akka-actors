@@ -1,7 +1,7 @@
-package io.scalac.auction.domain
+package io.scalac.auction.domain.actor
 
-import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
+import akka.actor.typed.{ActorRef, Behavior}
 
 object LotActor {
 

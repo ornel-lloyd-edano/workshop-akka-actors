@@ -1,11 +1,11 @@
-package io.scalac.auction.domain
+package io.scalac.auction.domain.actor
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.scaladsl.{Sink, Source}
-import akka.stream.{Materializer, OverflowStrategy}
 import akka.stream.typed.scaladsl.ActorSource
-import io.scalac.auction.domain.AuctionActor.AuctionCommand
+import akka.stream.{Materializer, OverflowStrategy}
+import io.scalac.auction.domain.actor.AuctionActor.AuctionCommand
 import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
 
 object AuctionActorManager {

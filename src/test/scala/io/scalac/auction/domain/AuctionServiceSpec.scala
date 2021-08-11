@@ -5,6 +5,7 @@ import akka.actor.ActorSystem
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
+import io.scalac.auction.domain.actor.AuctionActorManager
 import io.scalac.auction.domain.model.ServiceFailure.AuctionNotReady
 import io.scalac.auction.domain.model._
 import io.scalac.util.{Configs, ExecutionContexts}
@@ -13,7 +14,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import scala.concurrent.{Future}
+import scala.concurrent.Future
 
 class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Matchers with AsyncMockFactory  {
 

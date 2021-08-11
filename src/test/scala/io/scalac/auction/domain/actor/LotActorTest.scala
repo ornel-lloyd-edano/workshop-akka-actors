@@ -1,4 +1,4 @@
-package io.scalac.auction.domain
+package io.scalac.auction.domain.actor
 
 import java.util.UUID
 
