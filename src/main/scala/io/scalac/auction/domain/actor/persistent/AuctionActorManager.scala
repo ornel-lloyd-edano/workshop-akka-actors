@@ -17,8 +17,8 @@ import scala.concurrent.duration._
 object AuctionActorManager {
 
   sealed trait AuctionMgmtCommand extends CborSerializable
-  sealed trait AuctionMgmtEvent
-  sealed trait AuctionMgmtResponse extends AuctionMgmtEvent with CborSerializable
+  sealed trait AuctionMgmtEvent extends CborSerializable
+  sealed trait AuctionMgmtResponse extends AuctionMgmtEvent
 
   final case class Create(replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class GetAllAuctions(replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
@@ -72,7 +72,7 @@ object AuctionActorManager {
         case StreamActor.Fail(ex) => ex
       }, bufferSize = 1000, overflowStrategy = OverflowStrategy.dropHead)
 
-  private def applyCommand(state: AuctionMgmtState, cmd: AuctionMgmtCommand, replyTo: Option[ActorRef[AuctionMgmtResponse]])
+  private def applyCommand(state: AuctionMgmtState, cmd: AuctionMgmtCommand)
                   (implicit context: ActorContext[AuctionActorManager.AuctionMgmtCommand],
                    auctionActorMsgAdapter: ActorRef[AuctionActor.AuctionResponse],
                    streamActorRef: ActorRef[StreamActor.Protocol]): Effect[AuctionMgmtEvent, AuctionMgmtState] = cmd match {
@@ -286,7 +286,7 @@ object AuctionActorManager {
       EventSourcedBehavior[AuctionMgmtCommand, AuctionMgmtEvent, AuctionMgmtState](
         PersistenceId("AuctionMgmtActor", id),
         AuctionMgmtState(Map(), 0),
-        (state, command) => applyCommand(state, command, None),
+        (state, command) => applyCommand(state, command),
         (state, event) => applyEvent(state, event))
         .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
         .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))
