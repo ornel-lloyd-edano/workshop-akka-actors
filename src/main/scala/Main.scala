@@ -1,4 +1,5 @@
 import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.stream.Materializer
@@ -12,7 +13,7 @@ object Main extends App {
   implicit val ecProvider = ExecutionContexts
   implicit val ec = ecProvider.cpuBoundExCtx
   implicit val configProvider = Configs
-  implicit val system = ActorSystem(AuctionActorManager("1"), "system")
+  implicit val system = ActorSystem(Behaviors.empty, "system")
   implicit val mat = Materializer(system)
   implicit val scheduler = system.scheduler
   val auctionMgrActor = system.systemActorOf(AuctionActorManager("1"), "AuctionManagerActor")
