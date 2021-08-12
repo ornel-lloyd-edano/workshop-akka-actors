@@ -5,15 +5,17 @@ import akka.actor.typed.{ActorRef, Scheduler}
 import akka.util.Timeout
 import io.scalac.auction.domain.model._
 import io.scalac.util.{ConfigProvider, ExecutionContextProvider}
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.AuctionMgmtCommand])
-                           (implicit ecProvider: ExecutionContextProvider, config: ConfigProvider, scheduler: Scheduler, logger: org.slf4j.Logger) extends AuctionService {
+                           (implicit ecProvider: ExecutionContextProvider, config: ConfigProvider, scheduler: Scheduler) extends AuctionService {
 
   implicit val ec1 = ecProvider.cpuBoundExCtx
   implicit val timeout = Timeout(config.getIntConfigVal("auction.timeout.seconds").getOrElse(1) seconds)
+  val logger = LoggerFactory.getLogger(this.getClass)
 
   override def createAuction: Future[Either[ServiceFailure, AuctionId]] = {
     auctionManager.ask(AuctionActorManager.Create).map {
