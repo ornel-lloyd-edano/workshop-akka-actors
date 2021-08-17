@@ -1,14 +1,16 @@
 package io.scalac.auction.api
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes}
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directives, Route}
 import io.scalac.auction.domain.AuctionService
 import io.scalac.auction.domain.model.ServiceFailure
+import io.scalac.util.Logging
 
 import scala.util.{Failure, Success}
 
-class AuctionServiceController(auctionService: AuctionService) extends Directives with SprayJsonSupport {
+class AuctionServiceController(auctionService: AuctionService) extends Directives with SprayJsonSupport with Logging {
+  lazy val genericInternalServerErrorMsg = "Exception encountered please check logs."
 
   def createAuctionRoute: Route = path("auctions") {
     post {
@@ -18,7 +20,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
         case Success(Left(failure))=>
           complete(StatusCodes.InternalServerError, failure.message)
         case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+          logger.error(exception.getMessage, exception)
+          complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
       }
     }
   }
@@ -35,7 +38,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
           case Success(Left(otherFailure))=>
             complete(StatusCodes.InternalServerError, otherFailure.message)
           case Failure(exception)=>
-            complete(StatusCodes.InternalServerError, exception.getMessage)
+            logger.error(exception.getMessage, exception)
+            complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
         }
       }
   }
@@ -50,7 +54,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
           case Success(Left(otherFailure))=>
             complete(StatusCodes.InternalServerError, otherFailure.message)
           case Failure(exception)=>
-            complete(StatusCodes.InternalServerError, exception.getMessage)
+            logger.error(exception.getMessage, exception)
+            complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
         }
       }
     }
@@ -64,7 +69,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
         case Success(Left(failure))=>
           complete(StatusCodes.InternalServerError, failure.message)
         case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+          logger.error(exception.getMessage, exception)
+          complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
       }
     }
   }
@@ -81,7 +87,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
         case Success(Left(otherFailure))=>
           complete(StatusCodes.InternalServerError, otherFailure.message)
         case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+          logger.error(exception.getMessage, exception)
+          complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
       }
     }
   }
@@ -103,7 +110,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
         case Success(Left(otherFailure))=>
           complete(StatusCodes.InternalServerError, otherFailure.message)
         case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+          logger.error(exception.getMessage, exception)
+          complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
       }
     }
   }
@@ -123,7 +131,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
         case Success(Left(otherFailure))=>
           complete(StatusCodes.InternalServerError, otherFailure.message)
         case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+          logger.error(exception.getMessage, exception)
+          complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
       }
     }
   }
@@ -141,7 +150,8 @@ class AuctionServiceController(auctionService: AuctionService) extends Directive
         case Success(Left(otherFailure))=>
           complete(StatusCodes.InternalServerError, otherFailure.message)
         case Failure(exception)=>
-          complete(StatusCodes.InternalServerError, exception.getMessage)
+          logger.error(exception.getMessage, exception)
+          complete(StatusCodes.InternalServerError, genericInternalServerErrorMsg)
       }
     }
   }
