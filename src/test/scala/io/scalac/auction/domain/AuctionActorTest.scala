@@ -104,17 +104,18 @@ class AuctionActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers 
         AuctionActor.LotDetails(auctionId, "8", Some("old pirate chest"), None, None)
       )
       probe.expectMessage(AuctionActor.AggregatedLotDetails(results))
-      probe.expectMessage(AuctionActor.BidAccepted(auctionId, bidderUserId, lotId = "8"))
+      probe.expectMessage(AuctionActor.BidAccepted(auctionId, bidderUserId, lotId = "8", price = BigDecimal(1500)))
+
     }
 
     "accept Bid and reply with BidAccepted if bidder outbids current top bid for that lot" in {
       auctionActor ! AuctionActor.Bid(bidderUserId, "6", BigDecimal(1500), BigDecimal(2000), probe.ref)
-      probe.expectMessage(AuctionActor.BidAccepted(auctionId, bidderUserId, lotId = "6"))
+      probe.expectMessage(AuctionActor.BidAccepted(auctionId, bidderUserId, lotId = "6", price = BigDecimal(1500)))
     }
 
     "accept Bid and reply with BidRejected if bidder fails to outbid current top bid for that lot" in {
       auctionActor ! AuctionActor.Bid("anotherUserId", "6", BigDecimal(1500), BigDecimal(2000), probe.ref)
-      probe.expectMessage(AuctionActor.BidRejected(auctionId, "anotherUserId", lotId = "6"))
+      probe.expectMessage(AuctionActor.BidRejected(auctionId, "anotherUserId", lotId = "6", price = BigDecimal(1500)))
     }
 
     "accept Bid and reply with LotNotFound if no matching lotId" in {

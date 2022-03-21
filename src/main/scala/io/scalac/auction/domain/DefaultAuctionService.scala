@@ -2,20 +2,21 @@ package io.scalac.auction.domain
 
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.{ActorRef, Scheduler}
+
+import akka.stream.Materializer
 import akka.util.Timeout
 import io.scalac.auction.domain.model._
-import io.scalac.util.{ConfigProvider, ExecutionContextProvider}
-import org.slf4j.LoggerFactory
+import io.scalac.util.{ConfigProvider, ExecutionContextProvider, Logging}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.AuctionMgmtCommand])
-                           (implicit ecProvider: ExecutionContextProvider, config: ConfigProvider, scheduler: Scheduler) extends AuctionService {
+class DefaultAuctionService(val auctionManager: ActorRef[AuctionActorManager.AuctionMgmtCommand])
+                           (implicit ecProvider: ExecutionContextProvider, val config: ConfigProvider, val scheduler: Scheduler, val mat: Materializer)
+  extends AuctionService with AuctionStreamService with Logging {
 
-  implicit val ec1 = ecProvider.cpuBoundExCtx
-  implicit val timeout = Timeout(config.getIntConfigVal("auction.timeout.seconds").getOrElse(1) seconds)
-  val logger = LoggerFactory.getLogger(this.getClass)
+  implicit val ec = ecProvider.cpuBoundExCtx
+  implicit val timeout = Timeout(config.getIntConfigVal("auction.timeout.seconds").getOrElse(2) seconds)
 
   override def createAuction: Future[Either[ServiceFailure, AuctionId]] = {
     auctionManager.ask(AuctionActorManager.Create).map {
@@ -169,10 +170,10 @@ class DefaultAuctionService(auctionManager: ActorRef[AuctionActorManager.Auction
     auctionManager.ask[AuctionActorManager.AuctionMgmtResponse](ref=>
       AuctionActorManager.Bid(userId, auctionId, lotId, amount, maxAmount.getOrElse(amount), ref))
       .map {
-      case AuctionActorManager.BidAccepted(_, _)=>
+      case AuctionActorManager.BidAccepted(_, _, _, _)=>
         Right(userId)
 
-      case AuctionActorManager.BidRejected(userId, lotId)=>
+      case AuctionActorManager.BidRejected(userId, lotId, _, _)=>
         Left(ServiceFailure.BidRejected(s"User [$userId] failed to top the current top bidder for lot [$lotId] in auction [$auctionId]."))
       case AuctionActorManager.AuctionNotFound(auctionId)=>
         Left(ServiceFailure.AuctionNotFound(s"Bid did not proceed because auction [$auctionId] was not found."))

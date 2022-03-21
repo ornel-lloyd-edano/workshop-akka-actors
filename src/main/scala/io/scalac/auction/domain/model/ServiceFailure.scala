@@ -1,8 +1,8 @@
 package io.scalac.auction.domain.model
 
-sealed trait ServiceFailure {
-  val message: String
-}
+import io.scalac.domain
+
+sealed trait ServiceFailure extends domain.ServiceFailure
 
 object ServiceFailure {
   final case class AuctionNotReady(message: String) extends ServiceFailure

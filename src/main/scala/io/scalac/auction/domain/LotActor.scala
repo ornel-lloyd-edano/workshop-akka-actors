@@ -15,8 +15,9 @@ object LotActor {
 
   sealed trait LotResponse
 
-  final case class BidAccepted(userId: String, lotId: String) extends LotResponse
-  final case class BidRejected(userId: String, lotId: String) extends LotResponse
+  final case class BidAccepted(userId: String, lotId: String, price: BigDecimal) extends LotResponse
+  final case class BidRejected(userId: String, lotId: String, price: BigDecimal) extends LotResponse
+
   final case class LotDetails(lotId: String, description: Option[String],
                               currentTopBidder: Option[String], currentBidAmount: Option[BigDecimal]) extends LotResponse
 
@@ -36,12 +37,12 @@ class LotActor(id: String, description: Option[String],
       currentBestBid match {
         case Some(bestBid) if newBidAmount > bestBid.maxBidAmount && newMaxBidAmount > bestBid.maxBidAmount =>
           currentBestBid = Some(BestBid(newUserId, newBidAmount, newMaxBidAmount))
-          replyTo ! BidAccepted(newUserId, id)
-        case Some(_)=>
-          replyTo ! BidRejected(newUserId, id)
+          replyTo ! BidAccepted(newUserId, id, newBidAmount)
+        case Some(BestBid(_, oldAmount, _))=>
+          replyTo ! BidRejected(newUserId, id, oldAmount)
         case None=>
           currentBestBid = Some(BestBid(newUserId, newBidAmount, newMaxBidAmount))
-          replyTo ! BidAccepted(newUserId, id)
+          replyTo ! BidAccepted(newUserId, id, newBidAmount)
       }
       this
 

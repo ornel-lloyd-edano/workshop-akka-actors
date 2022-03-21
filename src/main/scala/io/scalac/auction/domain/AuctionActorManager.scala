@@ -2,6 +2,10 @@ package io.scalac.auction.domain
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
+import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.{Materializer, OverflowStrategy}
+import akka.stream.typed.scaladsl.ActorSource
+
 import io.scalac.auction.domain.AuctionActor.AuctionCommand
 import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
 
@@ -23,6 +27,8 @@ object AuctionActorManager {
   final case class Bid(userId: String, auctionId: String, lotId: String, amount: BigDecimal, maxBidAmount: BigDecimal, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class WrappedAuctionActorResponse(response: AuctionActor.AuctionResponse) extends AuctionMgmtCommand
 
+  case object ReachedEnd extends AuctionMgmtCommand
+  final case class FailureOccured(exception: Exception) extends AuctionMgmtCommand
 
   final case class Created(auctionId: String) extends AuctionMgmtResponse
   final case class AuctionDetail(id: String, status: AuctionStatus)
@@ -35,11 +41,22 @@ object AuctionActorManager {
   final case class LotDetails(auctionId: String, lotId: String, description: Option[String],
                               currentTopBidder: Option[String], currentBidAmount: Option[BigDecimal]) extends AuctionMgmtResponse
   final case class AggregatedLotDetails(lotDetails: Seq[LotDetails]) extends  AuctionMgmtResponse
-  final case class BidAccepted(userId: String, lotId: String) extends AuctionMgmtResponse
-  final case class BidRejected(userId: String, lotId: String) extends AuctionMgmtResponse
+
+  final case class BidAccepted(userId: String, lotId: String, auctionId: String, price: BigDecimal) extends AuctionMgmtResponse
+  final case class BidRejected(userId: String, lotId: String,  auctionId: String, price: BigDecimal) extends AuctionMgmtResponse
+
   final case class AuctionNotFound(auctionId: String) extends AuctionMgmtResponse
   final case class LotNotFound(auctionId: String, lotId: String) extends AuctionMgmtResponse
   case object CommandRejected extends AuctionMgmtResponse
+
+  final case class GetStreamSource(replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
+  final case class StreamSource(source: Source[StreamActor.Protocol, ActorRef[StreamActor.Protocol]]) extends AuctionMgmtResponse
+  object StreamActor {
+    trait Protocol
+    case class Message(msg: AuctionMgmtResponse) extends Protocol
+    case object Complete extends Protocol
+    case class Fail(ex: Exception) extends Protocol
+  }
 
   def apply(): Behavior[AuctionMgmtCommand] = Behaviors.withStash(100) { buffer=>
     Behaviors.setup(context => new AuctionActorManager(buffer, context).running(None))
@@ -55,7 +72,26 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
   private var idCounter: Int = 0
   val auctionActorMsgAdapter: ActorRef[AuctionActor.AuctionResponse] = context.messageAdapter(WrappedAuctionActorResponse(_))
 
-   def running(replyTo: Option[ActorRef[AuctionMgmtResponse]]): Behavior[AuctionActorManager.AuctionMgmtCommand] =  Behaviors.receiveMessagePartial {
+
+  val source: Source[StreamActor.Protocol, ActorRef[StreamActor.Protocol]] =
+    ActorSource.actorRef[StreamActor.Protocol](
+      completionMatcher = {
+        case StreamActor.Complete =>
+      },
+      failureMatcher = {
+        case StreamActor.Fail(ex) => ex
+      }, bufferSize = 1000, overflowStrategy = OverflowStrategy.dropHead)
+
+  val streamActorRef: ActorRef[StreamActor.Protocol] = source
+    .collect {
+      case StreamActor.Message(msg) => msg
+    }.to(Sink.ignore).run()(Materializer(context.system))
+
+  def running(replyTo: Option[ActorRef[AuctionMgmtResponse]]): Behavior[AuctionActorManager.AuctionMgmtCommand] =  Behaviors.receiveMessagePartial {
+    case GetStreamSource(replyTo)=>
+      replyTo ! StreamSource(source)
+      Behaviors.same
+
     case Create(replyTo)=>
       idCounter += 1
       val auctionId = idCounter.toString
@@ -124,6 +160,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
       running(Some(replyTo))
 
     case GetLot(auctionId, lotId, replyTo)=>
+      context.log.debug(s"Received GetLot(auctionId = $auctionId, lotId= $lotId)")
       auctionActors.get(auctionId) match {
         case Some((auctionActor, _))=>
           auctionActor ! AuctionActor.GetLot(lotId, auctionActorMsgAdapter)
@@ -162,6 +199,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
         case AuctionActor.LotsRemoved(auctionId, lotIds)=>
           replyTo.foreach(_ ! AllLotsRemoved(auctionId, lotIds))
         case AuctionActor.LotDetails(auctionId, lotId, description, currentTopBidder, currentBidAmount)=>
+          context.log.debug(s"Replying LotDetails(auctionId = $auctionId, lotId= $lotId, price=${currentBidAmount})")
           replyTo.foreach(_ ! LotDetails(auctionId, lotId, description,
             currentTopBidder, currentBidAmount))
         case AuctionActor.AggregatedLotDetails(lotDetails)=>
@@ -179,10 +217,12 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
               auctionActors += (auctionId -> (actorRef, AuctionStates.Stopped))
           }
           replyTo.foreach(_ ! Stopped(auctionId))
-        case AuctionActor.BidAccepted(_, userId, lotId)=>
-          replyTo.foreach(_ ! BidAccepted(userId, lotId))
-        case AuctionActor.BidRejected(_, userId, lotId)=>
-          replyTo.foreach(_ ! BidRejected(userId, lotId))
+        case AuctionActor.BidAccepted(auctionId, userId, lotId, newPrice)=>
+          val bidAccepted = BidAccepted(userId, lotId, auctionId, newPrice)
+          streamActorRef ! StreamActor.Message(bidAccepted)
+          replyTo.foreach(_ ! bidAccepted)
+        case AuctionActor.BidRejected(auctionId, userId, lotId, oldPrice)=>
+          replyTo.foreach(_ ! BidRejected(userId, lotId, auctionId, oldPrice))
         case AuctionActor.LotNotFound(auctionId, lotId)=>
           replyTo.foreach(_ ! LotNotFound(auctionId, lotId))
         case AuctionActor.AuctionCommandRejected(_)=>

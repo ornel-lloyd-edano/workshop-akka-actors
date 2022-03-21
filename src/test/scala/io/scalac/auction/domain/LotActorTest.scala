@@ -34,7 +34,8 @@ class LotActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers {
       val bidAmount = BigDecimal(1000)
       val maxBidAmount = BigDecimal(2000)
       lotActor ! LotActor.Bid(newUserId, bidAmount, maxBidAmount, probe.ref)
-      probe.expectMessage(LotActor.BidAccepted(newUserId, lotId))
+      probe.expectMessage(LotActor.BidAccepted(newUserId, lotId, bidAmount))
+
     }
 
     "reject Bid and reply with BidRejected if next bidder's bid amount fail to top the last bidder's max bid amount" in {
@@ -42,13 +43,15 @@ class LotActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers {
       val bidAmount = BigDecimal(1500)
       val maxBidAmount = BigDecimal(2500)
       lotActor ! LotActor.Bid(newUserId, bidAmount, maxBidAmount, probe.ref)
-      probe.expectMessage(LotActor.BidRejected(newUserId, lotId))
+      probe.expectMessage(LotActor.BidRejected(newUserId, lotId, BigDecimal(1000)))
+
     }
 
     "accept Bid and reply with BidAccepted if next bidder's bid amount tops the last bidder's max bid amount" in {
       val maxBidAmount = BigDecimal(2500)
       lotActor ! LotActor.Bid(userIdOfBestBidder, bestBidderBidAmount, maxBidAmount, probe.ref)
-      probe.expectMessage(LotActor.BidAccepted(userIdOfBestBidder, lotId))
+      probe.expectMessage(LotActor.BidAccepted(userIdOfBestBidder, lotId, bestBidderBidAmount))
+
     }
 
     "accept GetDetails and reply with LotDetails including the current best bid" in {
