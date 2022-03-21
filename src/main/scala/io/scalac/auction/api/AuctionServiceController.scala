@@ -44,6 +44,7 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
     }
   }
 
+
   //Note: this route is more like RPC-style than Restful style
   def startAuction: Route = path("auctions" / Segment / "start") { auctionId=>
       put {
@@ -63,6 +64,7 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
         }
       }
   }
+
 
   //Note: this route is more like RPC-style than Restful style
   def endAuction: Route = path("auctions" / Segment / "end") { auctionId=>
@@ -145,6 +147,7 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
     }
   }
 
+
   def getLotById: Route = path("auctions" / Segment / "lots" / Segment) { (auctionId, lotId) =>
     get {
       logInfoRequestResponse {
@@ -165,6 +168,7 @@ class AuctionServiceController(val auctionService: AuctionService with AuctionSt
       }
     }
   }
+
 
   def getLotsByAuction: Route = path("auctions" / Segment / "lots") { auctionId =>
     get {

@@ -32,6 +32,7 @@ class AuctionServiceSpec extends ScalaTestWithActorTestKit(s"""
 
   override def afterAll(): Unit = testKit.shutdownTestKit()
 
+
   "AuctionService" should {
     "create an auction" in {
       val actor = testKit.spawn(AuctionActorManager("id-1"))
@@ -327,6 +328,7 @@ class AuctionServiceSpec extends ScalaTestWithActorTestKit(s"""
         val streamResult = results._2
         streamResult.sorted should be (expectedStreamResult.sorted)
       }
+
     }
   }
 

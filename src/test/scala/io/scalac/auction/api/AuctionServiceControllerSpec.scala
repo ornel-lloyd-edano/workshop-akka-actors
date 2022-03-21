@@ -8,6 +8,7 @@ import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import com.github._3tty0n.jwt.JWT
+
 import io.scalac.auction.api.dto.{AddLot, UserBid}
 import io.scalac.auction.api.formats.JsonFormatter
 import io.scalac.auction.domain.{AuctionService, AuctionStreamService}
