@@ -105,6 +105,7 @@ class AuctionActorTest extends AnyWordSpec with BeforeAndAfterAll with Matchers 
       )
       probe.expectMessage(AuctionActor.AggregatedLotDetails(results))
       probe.expectMessage(AuctionActor.BidAccepted(auctionId, bidderUserId, lotId = "8", price = BigDecimal(1500)))
+
     }
 
     "accept Bid and reply with BidAccepted if bidder outbids current top bid for that lot" in {

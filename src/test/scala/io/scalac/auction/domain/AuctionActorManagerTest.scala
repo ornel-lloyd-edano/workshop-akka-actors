@@ -86,6 +86,7 @@ class AuctionActorManagerTest extends AnyWordSpec with BeforeAndAfterAll with Ma
     "able to accept Bid after auction is started" in {
       auctionMgrActor ! AuctionActorManager.Bid("new user1", "1", "5", BigDecimal(3000), BigDecimal(4000), probe.ref)
       probe.expectMessage(AuctionActorManager.BidAccepted("new user1", "5", "1", BigDecimal(3000)))
+
     }
 
     "able to accept GetLot after auction is started" in {

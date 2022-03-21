@@ -17,6 +17,7 @@ object LotActor {
 
   final case class BidAccepted(userId: String, lotId: String, price: BigDecimal) extends LotResponse
   final case class BidRejected(userId: String, lotId: String, price: BigDecimal) extends LotResponse
+
   final case class LotDetails(lotId: String, description: Option[String],
                               currentTopBidder: Option[String], currentBidAmount: Option[BigDecimal]) extends LotResponse
 

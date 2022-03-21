@@ -2,6 +2,7 @@ package io.scalac.auction.domain
 
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.{ActorRef, Scheduler}
+
 import akka.stream.Materializer
 import akka.util.Timeout
 import io.scalac.auction.domain.model._

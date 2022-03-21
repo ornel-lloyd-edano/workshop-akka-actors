@@ -5,6 +5,7 @@ import akka.actor.ActorSystem
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
+
 import io.scalac.auction.domain.model.ServiceFailure.AuctionNotReady
 import io.scalac.auction.domain.model._
 import io.scalac.util.{Configs, ExecutionContexts}
@@ -321,4 +322,5 @@ class AuctionServiceSpec extends AsyncFlatSpec with BeforeAndAfterAll with Match
       streamResult.sorted should be (expectedStreamResult.sorted)
     }
   }
+
 }

@@ -5,6 +5,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.stream.typed.scaladsl.ActorSource
+
 import io.scalac.auction.domain.AuctionActor.AuctionCommand
 import io.scalac.auction.domain.model.{AuctionStates, AuctionStatus}
 
@@ -25,6 +26,7 @@ object AuctionActorManager {
   final case class GetAllLotsByAuction(auctionId: String, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class Bid(userId: String, auctionId: String, lotId: String, amount: BigDecimal, maxBidAmount: BigDecimal, replyTo: ActorRef[AuctionMgmtResponse]) extends AuctionMgmtCommand
   final case class WrappedAuctionActorResponse(response: AuctionActor.AuctionResponse) extends AuctionMgmtCommand
+
   case object ReachedEnd extends AuctionMgmtCommand
   final case class FailureOccured(exception: Exception) extends AuctionMgmtCommand
 
@@ -39,8 +41,10 @@ object AuctionActorManager {
   final case class LotDetails(auctionId: String, lotId: String, description: Option[String],
                               currentTopBidder: Option[String], currentBidAmount: Option[BigDecimal]) extends AuctionMgmtResponse
   final case class AggregatedLotDetails(lotDetails: Seq[LotDetails]) extends  AuctionMgmtResponse
+
   final case class BidAccepted(userId: String, lotId: String, auctionId: String, price: BigDecimal) extends AuctionMgmtResponse
   final case class BidRejected(userId: String, lotId: String,  auctionId: String, price: BigDecimal) extends AuctionMgmtResponse
+
   final case class AuctionNotFound(auctionId: String) extends AuctionMgmtResponse
   final case class LotNotFound(auctionId: String, lotId: String) extends AuctionMgmtResponse
   case object CommandRejected extends AuctionMgmtResponse
@@ -67,6 +71,7 @@ class AuctionActorManager private(buffer: StashBuffer[AuctionActorManager.Auctio
   private var auctionActors = Map[String, (ActorRef[AuctionCommand], AuctionStatus)]()
   private var idCounter: Int = 0
   val auctionActorMsgAdapter: ActorRef[AuctionActor.AuctionResponse] = context.messageAdapter(WrappedAuctionActorResponse(_))
+
 
   val source: Source[StreamActor.Protocol, ActorRef[StreamActor.Protocol]] =
     ActorSource.actorRef[StreamActor.Protocol](
