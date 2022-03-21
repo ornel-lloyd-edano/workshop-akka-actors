@@ -8,7 +8,8 @@ import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import com.github._3tty0n.jwt.JWT
-import io.scalac.auction.api.dto.{AddLot, BidResult, UserBid}
+
+import io.scalac.auction.api.dto.{AddLot, UserBid}
 import io.scalac.auction.api.formats.JsonFormatter
 import io.scalac.auction.domain.{AuctionService, AuctionStreamService}
 import io.scalac.auction.domain.model.ServiceFailure._
@@ -22,7 +23,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import spray.json._
 
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 
 class AuctionServiceControllerSpec extends AnyFlatSpec with Matchers with MockFactory with ScalatestRouteTest with ScalaFutures with SprayJsonSupport with JsonFormatter {
   implicit val config: ConfigProvider = Configs

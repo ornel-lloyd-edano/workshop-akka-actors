@@ -6,6 +6,8 @@ import akka.actor.typed.scaladsl.AskPattern._
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.util.Timeout
+
+import io.scalac.auction.domain.actor.persistent.AuctionActorManager
 import io.scalac.auction.domain.model.{BidFail, BidResult, BidSuccess, GetLotPrice, Lot, LotPrice, SendBid}
 import io.scalac.util.{ConfigProvider, Logging}
 
